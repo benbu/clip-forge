@@ -21,11 +21,14 @@ export async function importVideoFiles(files) {
         name: file.name,
         path: file.path || file.name,
         size: formatFileSize(file.size),
+        sizeBytes: file.size, // Keep original for future reference
         type: file.type,
         duration: formatDuration(metadata.duration),
+        durationSeconds: metadata.duration, // Keep original for timeline calculations
         width: metadata.width,
         height: metadata.height,
         resolution: `${metadata.width}x${metadata.height}`,
+        originalFile: file, // Keep reference to File object for blob URL creation
         createdAt: new Date().toISOString(),
       };
       

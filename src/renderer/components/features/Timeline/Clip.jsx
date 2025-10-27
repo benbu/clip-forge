@@ -13,9 +13,11 @@ export function Clip({ clip, zoom, onSelect }) {
   
   const { updateClip, removeClip, trimClip, clips, snapToGrid } = useTimelineStore();
   
-  // Calculate position and width based on zoom
-  const left = (clip.start / 120) * 100; // Assuming 120s timeline
-  const width = (clip.duration / 120) * 100;
+  // Calculate position and width based on fixed max duration window resizing
+  const MAX_DURATION = 120;
+  const clipDuration = Math.max(0.1, (clip.end ?? (clip.start + (clip.duration ?? 0))) - clip.start);
+  const left = (clip.start / MAX_DURATION) * 100;
+  const width = (clipDuration / MAX_DURATION) * 100;
   
   // Find snap points from other clips
   const findSnapPoints = () => {
@@ -70,17 +72,35 @@ export function Clip({ clip, zoom, onSelect }) {
     setIsDragging(true);
     
     const startX = e.clientX;
-    const startLeft = left;
+    const startStart = clip.start;
+    const startEnd = clip.start + clipDuration;
     
     const handleMouseMove = (e) => {
       const deltaX = e.clientX - startX;
-      const deltaPercent = (deltaX / clipRef.current.parentElement.offsetWidth) * 100;
-      const rawStart = ((deltaPercent + startLeft) / 100) * 120;
-      
-      // Apply snapping if enabled
-      const newStart = snapToGrid ? getSnapPosition(rawStart) : rawStart;
-      
-      updateClip(clip.id, { start: Math.max(0, newStart) });
+      const parentWidth = clipRef.current.parentElement.offsetWidth;
+      const secondsPerPx = MAX_DURATION / parentWidth;
+      const deltaSec = deltaX * secondsPerPx;
+
+      let rawStart = startStart + deltaSec;
+      let rawEnd = startEnd + deltaSec;
+
+      // Clamp move within bounds
+      const durationSec = rawEnd - rawStart;
+      if (rawStart < 0) {
+        rawEnd += -rawStart;
+        rawStart = 0;
+      }
+      if (rawEnd > MAX_DURATION) {
+        const overshoot = rawEnd - MAX_DURATION;
+        rawStart -= overshoot;
+        rawEnd = MAX_DURATION;
+      }
+
+      // Apply snapping if enabled (snap start)
+      const snappedStart = snapToGrid ? getSnapPosition(rawStart) : rawStart;
+      const snappedEnd = snappedStart + durationSec;
+
+      updateClip(clip.id, { start: snappedStart, end: snappedEnd });
     };
     
     const handleMouseUp = () => {
@@ -98,29 +118,27 @@ export function Clip({ clip, zoom, onSelect }) {
     e.stopPropagation();
     
     const startX = e.clientX;
-    const startWidth = width;
-    const startLeft = left;
+    const startStart = clip.start;
+    const startEnd = clip.start + clipDuration;
     
     const handleMouseMove = (e) => {
       const deltaX = e.clientX - startX;
-      const deltaPercent = (deltaX / clipRef.current.parentElement.offsetWidth) * 100;
-      
+      const parentWidth = clipRef.current.parentElement.offsetWidth;
+      const secondsPerPx = MAX_DURATION / parentWidth;
+      const deltaSec = deltaX * secondsPerPx;
+
       if (side === 'left') {
-        const rawStart = ((deltaPercent + startLeft) / 100) * 120;
+        let rawStart = startStart + deltaSec;
+        rawStart = Math.max(0, Math.min(rawStart, startEnd - 0.1));
         const newStart = snapToGrid ? getSnapPosition(rawStart) : rawStart;
-        const newDuration = clip.duration + (clip.start - newStart);
-        
-        if (newDuration > 1 && newStart >= 0) {
-          trimClip(clip.id, newStart, clip.end);
-        }
+        const clampedStart = Math.max(0, Math.min(newStart, startEnd - 0.1));
+        trimClip(clip.id, clampedStart, startEnd);
       } else {
-        const rawEnd = clip.start + ((deltaPercent + startWidth) / 100) * 120;
+        let rawEnd = startEnd + deltaSec;
+        rawEnd = Math.min(MAX_DURATION, Math.max(rawEnd, startStart + 0.1));
         const newEnd = snapToGrid ? getSnapPosition(rawEnd) : rawEnd;
-        const newDuration = newEnd - clip.start;
-        
-        if (newDuration > 1) {
-          trimClip(clip.id, clip.start, newEnd);
-        }
+        const clampedEnd = Math.min(MAX_DURATION, Math.max(newEnd, startStart + 0.1));
+        trimClip(clip.id, startStart, clampedEnd);
       }
     };
     

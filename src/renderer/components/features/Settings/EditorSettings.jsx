@@ -9,19 +9,11 @@ export function EditorSettings() {
   const [autohideDelay, setAutohideDelay] = useState(3);
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-        <Edit3 className="h-5 w-5 text-indigo-400" />
-        Editor Settings
-      </h3>
-
+    <div className="space-y-4">
       {/* Timeline Settings */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Timer className="h-4 w-4" />
-          Timeline
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Timeline</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Default Zoom: {zoom}x</label>
             <Slider value={[zoom]} min={0.5} max={2} step={0.1} onValueChange={([val]) => setZoom(val)} />
@@ -31,11 +23,11 @@ export function EditorSettings() {
             <Slider value={[trackHeight]} min={20} max={48} step={2} onValueChange={([val]) => setTrackHeight(val)} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Snap to Grid</span>
+            <span className="text-xs text-zinc-300">Snap to Grid</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Show Grid Lines</span>
+            <span className="text-xs text-zinc-300">Show Grid Lines</span>
             <Switch checked={false} onChange={() => {}} />
           </div>
         </div>
@@ -43,17 +35,14 @@ export function EditorSettings() {
 
       {/* Player Settings */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Play className="h-4 w-4" />
-          Player
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Player</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Auto-play on Import</span>
+            <span className="text-xs text-zinc-300">Auto-play on Import</span>
             <Switch checked={false} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Loop Playback</span>
+            <span className="text-xs text-zinc-300">Loop Playback</span>
             <Switch checked={false} onChange={() => {}} />
           </div>
           <div>
@@ -65,13 +54,10 @@ export function EditorSettings() {
 
       {/* Performance */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Zap className="h-4 w-4" />
-          Performance
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Performance</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Hardware Acceleration</span>
+            <span className="text-xs text-zinc-300">Hardware Acceleration</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
           <div>

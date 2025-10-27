@@ -1,7 +1,10 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { useTimelineStore } from '@/store/timelineStore';
 
 export function TimeRuler({ startTime, endTime, zoom, playhead }) {
+  const { setPlayheadPosition } = useTimelineStore();
+  const trackLabelWidth = 160; // Width of the track label area (w-40 = 160px)
   const duration = endTime - startTime;
   const tickInterval = zoom < 1 ? 10 : zoom < 1.5 ? 5 : 1;
   const ticks = [];
@@ -10,9 +13,18 @@ export function TimeRuler({ startTime, endTime, zoom, playhead }) {
     ticks.push(i);
   }
   
+  const handleClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const timelineWidth = rect.width - trackLabelWidth;
+    const clickX = e.clientX - rect.left - trackLabelWidth;
+    const time = (clickX / timelineWidth) * duration;
+    const clampedTime = Math.max(startTime, Math.min(endTime, startTime + time));
+    setPlayheadPosition(clampedTime);
+  };
+  
   return (
     <div className="sticky top-0 z-10 bg-zinc-900/95 border-b border-white/10">
-      <div className="relative h-8 bg-zinc-800/50">
+      <div className="relative h-8 bg-zinc-800/50 cursor-pointer" onClick={handleClick}>
         {ticks.map((tick, idx) => {
           const isMajor = tick % 10 === 0;
           const position = ((tick - startTime) / duration) * 100;
@@ -25,7 +37,7 @@ export function TimeRuler({ startTime, endTime, zoom, playhead }) {
                 isMajor && 'border-zinc-500 h-full',
                 !isMajor && 'h-1/2'
               )}
-              style={{ left: `${position}%` }}
+              style={{ left: `calc(${trackLabelWidth}px + ${position / 100} * (100% - ${trackLabelWidth}px))` }}
             >
               {isMajor && (
                 <span className="absolute -bottom-5 left-0 text-xs text-zinc-400 transform -translate-x-1/2">

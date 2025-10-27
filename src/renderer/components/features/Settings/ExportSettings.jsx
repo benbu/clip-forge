@@ -4,19 +4,11 @@ import { Download, Zap, Settings } from 'lucide-react';
 
 export function ExportSettings() {
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-        <Download className="h-5 w-5 text-indigo-400" />
-        Export Settings
-      </h3>
-
+    <div className="space-y-4">
       {/* Export Quality */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Default Quality
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Default Quality</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div>
             <label className="text-xs text-zinc-400 mb-1 block">Resolution</label>
             <select className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm">
@@ -49,17 +41,14 @@ export function ExportSettings() {
 
       {/* Advanced Export */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Zap className="h-4 w-4" />
-          Advanced
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Advanced</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Two-Pass Encoding</span>
+            <span className="text-xs text-zinc-300">Two-Pass Encoding</span>
             <Switch checked={false} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Hardware Acceleration</span>
+            <span className="text-xs text-zinc-300">Hardware Acceleration</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
           <div>
@@ -75,4 +64,3 @@ export function ExportSettings() {
     </div>
   );
 }
-

@@ -53,9 +53,16 @@ export function Timeline() {
     setIsDragOver(false);
     
     try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+      // Check if there's any data to parse
+      const dataString = e.dataTransfer.getData('application/json');
+      if (!dataString || dataString.trim() === '') {
+        console.warn('No data available in drop event');
+        return;
+      }
       
-      if (data.type === 'media-file' && data.file) {
+      const data = JSON.parse(dataString);
+      
+      if (data && data.type === 'media-file' && data.file) {
         // Convert media file to timeline clip
         const duration = parseDurationToSeconds(data.file.duration);
         

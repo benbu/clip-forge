@@ -8,7 +8,7 @@ export const usePlayerStore = create((set) => ({
   isPlaying: false,
   currentTime: 0, // in seconds
   duration: 0,
-  volume: 1, // 0 to 1
+  volume: 75, // 0 to 100
   playbackRate: 1, // 0.25x to 2x
   isMuted: false,
   isFullscreen: false,
@@ -24,7 +24,7 @@ export const usePlayerStore = create((set) => ({
 
   setDuration: (duration) => set({ duration }),
 
-  setVolume: (volume) => set({ volume: Math.max(0, Math.min(1, volume)) }),
+  setVolume: (volume) => set({ volume: Math.max(0, Math.min(100, volume)) }),
 
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
 

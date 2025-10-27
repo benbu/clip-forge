@@ -13,7 +13,7 @@ import { shortcuts } from '@/lib/keyboardShortcuts';
 
 export function VideoPlayer() {
   const videoRef = useRef(null);
-  const { selectedFile } = useMediaStore();
+  const { selectedFile, selectedFileData, fileBlobUrls, setFileBlobUrl } = useMediaStore();
   const { playheadPosition, setPlayheadPosition } = useTimelineStore();
   const { 
     isPlaying, 
@@ -30,6 +30,22 @@ export function VideoPlayer() {
   } = usePlayerStore();
   
   const [showControls, setShowControls] = useState(true);
+  const [videoSrc, setVideoSrc] = useState(null);
+  
+  // Load selected file's video source
+  useEffect(() => {
+    if (selectedFileData?.originalFile) {
+      const blobUrl = URL.createObjectURL(selectedFileData.originalFile);
+      setVideoSrc(blobUrl);
+      setFileBlobUrl(selectedFileData.id, blobUrl);
+      
+      return () => {
+        // Cleanup will be handled by the store
+      };
+    } else {
+      setVideoSrc(null);
+    }
+  }, [selectedFileData, setFileBlobUrl]);
   
   // Update video element when state changes
   useEffect(() => {
@@ -118,7 +134,7 @@ export function VideoPlayer() {
       {/* Video Element */}
       <video
         ref={videoRef}
-        src={selectedFile ? undefined : undefined} // Will be connected later
+        src={videoSrc || undefined}
         className="w-full h-full object-contain"
         preload="metadata"
       >

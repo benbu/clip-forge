@@ -43,33 +43,26 @@ export const useTimelineStore = create((set) => ({
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
 
   // Trim clip
-  trimClip: (clipId, startTime, endTime) => set((state) => ({
-    clips: state.clips.map(clip => 
-      clip.id === clipId ? { ...clip, startTime, endTime } : clip
+  trimClip: (clipId, start, end) => set((state) => ({
+    clips: state.clips.map((clip) =>
+      clip.id === clipId ? { ...clip, start, end } : clip
     )
   })),
 
   // Split clip at current playhead
   splitClipAtPlayhead: (clipId) => set((state) => {
     const playhead = state.playheadPosition;
-    const clips = state.clips.map(clip => {
+    const nextClips = [];
+    for (const clip of state.clips) {
       if (clip.id === clipId && clip.start <= playhead && playhead <= clip.end) {
-        // Split this clip
-        const newEnd = clip.end;
-        const newClip = {
-          ...clip,
-          id: `${clip.id}-split-${Date.now()}`,
-          start: playhead,
-          end: newEnd,
-          startTrim: playhead - clip.start
-        };
-        
-        return { ...clip, end: playhead, endTrim: 0 };
+        const leftClip = { ...clip, end: playhead };
+        const rightClip = { ...clip, id: `${clip.id}-split-${Date.now()}`, start: playhead };
+        nextClips.push(leftClip, rightClip);
+      } else {
+        nextClips.push(clip);
       }
-      return clip;
-    });
-
-    return { clips };
+    }
+    return { clips: nextClips };
   }),
 }));
 

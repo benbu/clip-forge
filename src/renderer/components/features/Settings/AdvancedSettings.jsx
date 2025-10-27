@@ -10,19 +10,11 @@ export function AdvancedSettings() {
   const [maxCacheSize, setMaxCacheSize] = useState(5);
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-        <Code className="h-5 w-5 text-indigo-400" />
-        Advanced Settings
-      </h3>
-
+    <div className="space-y-4">
       {/* App Behavior */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Code className="h-4 w-4" />
-          App Behavior
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">App Behavior</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Auto-save Interval: {autosave} minutes</label>
             <Slider value={[autosave]} min={1} max={60} step={1} onValueChange={([val]) => setAutosave(val)} />
@@ -32,11 +24,11 @@ export function AdvancedSettings() {
             <Slider value={[maxUndo]} min={5} max={100} step={5} onValueChange={([val]) => setMaxUndo(val)} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Enable Analytics</span>
+            <span className="text-xs text-zinc-300">Enable Analytics</span>
             <Switch checked={false} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Crash Reporting</span>
+            <span className="text-xs text-zinc-300">Crash Reporting</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
         </div>
@@ -44,20 +36,17 @@ export function AdvancedSettings() {
 
       {/* Storage */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <HardDrive className="h-4 w-4" />
-          Storage
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Storage</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Max Cache Size: {maxCacheSize} GB</label>
             <Slider value={[maxCacheSize]} min={1} max={50} step={1} onValueChange={([val]) => setMaxCacheSize(val)} />
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" className="flex-1">
+            <Button variant="secondary" className="flex-1" size="sm">
               Clear Cache
             </Button>
-            <Button variant="ghost">
+            <Button variant="ghost" size="sm">
               Browse...
             </Button>
           </div>
@@ -66,13 +55,10 @@ export function AdvancedSettings() {
 
       {/* Updates */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Updates
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Updates</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Auto-update</span>
+            <span className="text-xs text-zinc-300">Auto-update</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
           <div>
@@ -82,7 +68,7 @@ export function AdvancedSettings() {
               <option>Beta</option>
             </select>
           </div>
-          <Button variant="secondary" className="w-full">
+          <Button variant="secondary" className="w-full" size="sm">
             Check for Updates
           </Button>
         </div>
@@ -90,4 +76,3 @@ export function AdvancedSettings() {
     </div>
   );
 }
-

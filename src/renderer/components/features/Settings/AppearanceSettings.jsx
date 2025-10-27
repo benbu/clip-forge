@@ -13,19 +13,11 @@ export function AppearanceSettings() {
   const [fontSize, setFontSize] = useState(14);
   
   return (
-    <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-        <Palette className="h-5 w-5 text-indigo-400" />
-        Appearance Settings
-      </h3>
-
+    <div className="space-y-4">
       {/* Theme Colors */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4" />
-          Theme Colors
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Theme Colors</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Primary Color</label>
@@ -69,11 +61,8 @@ export function AppearanceSettings() {
 
       {/* Typography */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Type className="h-4 w-4" />
-          Typography
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Typography</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Base Font Size: {fontSize}px</label>
             <Slider value={[fontSize]} min={12} max={18} step={1} onValueChange={([val]) => setFontSize(val)} />
@@ -101,11 +90,8 @@ export function AppearanceSettings() {
 
       {/* Spacing & Layout */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Layout className="h-4 w-4" />
-          Spacing & Layout
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Spacing & Layout</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Border Radius: {borderRadius}px</label>
             <Slider value={[borderRadius]} min={0} max={24} step={1} onValueChange={([val]) => setBorderRadius(val)} />
@@ -119,21 +105,18 @@ export function AppearanceSettings() {
 
       {/* Visual Effects */}
       <div>
-        <h4 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Eye className="h-4 w-4" />
-          Visual Effects
-        </h4>
-        <div className="space-y-3 bg-zinc-900/50 rounded-lg p-4">
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Visual Effects</h4>
+        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Glassmorphism Effect</span>
+            <span className="text-xs text-zinc-300">Glassmorphism Effect</span>
             <Switch checked={false} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Panel Borders</span>
+            <span className="text-xs text-zinc-300">Panel Borders</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-300">Animations</span>
+            <span className="text-xs text-zinc-300">Animations</span>
             <Switch checked={true} onChange={() => {}} />
           </div>
         </div>
