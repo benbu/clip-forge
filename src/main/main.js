@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 let mainWindow;
+const isDev = !app.isPackaged;
 
 const createMainWindow = () => {
   mainWindow = new BrowserWindow({
@@ -19,8 +20,11 @@ const createMainWindow = () => {
     },
   });
 
-  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL || (isDev ? 'http://localhost:5173' : null);
   if (devServerUrl) {
+    if (isDev) {
+      console.log(`Loading renderer from ${devServerUrl}`);
+    }
     mainWindow.loadURL(devServerUrl);
   } else {
     const indexPath = path.join(__dirname, '..', '..', 'dist', 'renderer', 'index.html');
