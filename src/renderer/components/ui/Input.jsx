@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
-export function Input({ type = 'text', error, className, ...props }) {
+export const Input = forwardRef(function Input({ type = 'text', error, className, ...props }, ref) {
   return (
     <input
+      ref={ref}
       type={type}
       className={cn(
         'flex h-10 w-full rounded-md border bg-zinc-900 px-3 py-2 text-sm',
@@ -16,5 +17,5 @@ export function Input({ type = 'text', error, className, ...props }) {
       {...props}
     />
   );
-}
+});
 

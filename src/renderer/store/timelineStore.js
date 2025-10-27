@@ -7,7 +7,7 @@ export const useTimelineStore = create((set) => ({
   // State
   clips: [],
   playheadPosition: 0, // in seconds
-  zoom: 1, // 0.5x to 2x
+  zoom: 1, // 0.1x to 10x
   snapToGrid: true,
   
   // Actions
@@ -38,7 +38,7 @@ export const useTimelineStore = create((set) => ({
 
   setPlayheadPosition: (position) => set({ playheadPosition: position }),
 
-  setZoom: (zoom) => set({ zoom: Math.max(0.5, Math.min(2, zoom)) }),
+  setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(10, zoom)) }),
 
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
 

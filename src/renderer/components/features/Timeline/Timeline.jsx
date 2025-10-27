@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ZoomIn, ZoomOut, Scissors, Grid } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Track } from './Track';
 import { Playhead } from './Playhead';
 import { TimeRuler } from './TimeRuler';
@@ -20,6 +21,36 @@ export function Timeline() {
   } = useTimelineStore();
   
   const [isDragOver, setIsDragOver] = useState(false);
+  const [zoomInput, setZoomInput] = useState(zoom.toFixed(2));
+  const zoomInputRef = useRef(null);
+  
+  const handleZoomInputChange = (value) => {
+    setZoomInput(value);
+  };
+  
+  const handleZoomInputBlur = () => {
+    const numValue = parseFloat(zoomInput);
+    if (isNaN(numValue)) {
+      // Revert to current zoom if non-number
+      setZoomInput(zoom.toFixed(2));
+    } else {
+      // Clamp to valid range
+      const clampedValue = Math.max(0.1, Math.min(10, numValue));
+      setZoomInput(clampedValue.toFixed(2));
+      setZoom(clampedValue);
+    }
+  };
+  
+  const handleZoomInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      zoomInputRef.current?.blur();
+    }
+  };
+  
+  // Sync input when zoom changes externally
+  useEffect(() => {
+    setZoomInput(zoom.toFixed(2));
+  }, [zoom]);
   
   const tracks = [
     { id: 0, name: 'Video Track 1' },
@@ -119,15 +150,32 @@ export function Timeline() {
               variant="ghost" 
               icon={<ZoomOut className="h-3.5 w-3.5" />} 
               iconOnly 
-              onClick={() => setZoom(Math.max(0.5, zoom - 0.25))} 
+              onClick={() => {
+                const newZoom = Math.max(0.1, zoom - 0.25);
+                setZoom(newZoom);
+                setZoomInput(newZoom.toFixed(2));
+              }} 
             />
-            <span className="text-xs text-zinc-500 px-2">{zoom.toFixed(2)}x</span>
+            <Input
+              ref={zoomInputRef}
+              type="text"
+              value={zoomInput}
+              onChange={(e) => handleZoomInputChange(e.target.value)}
+              onBlur={handleZoomInputBlur}
+              onKeyDown={handleZoomInputKeyDown}
+              className="w-16 h-8 text-xs text-center"
+            />
+            <span className="text-xs text-zinc-500">x</span>
             <Button 
               size="sm" 
               variant="ghost" 
               icon={<ZoomIn className="h-3.5 w-3.5" />} 
               iconOnly 
-              onClick={() => setZoom(Math.min(2, zoom + 0.25))} 
+              onClick={() => {
+                const newZoom = Math.min(10, zoom + 0.25);
+                setZoom(newZoom);
+                setZoomInput(newZoom.toFixed(2));
+              }} 
             />
           </div>
           <Button 

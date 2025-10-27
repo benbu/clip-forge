@@ -6,12 +6,36 @@ export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration 
   const { setPlayheadPosition } = useTimelineStore();
   const trackLabelWidth = 160; // Width of the track label area (w-40 = 160px)
   const duration = visibleDuration || (endTime - startTime);
-  // Adjust tick interval based on visible duration
-  const tickInterval = duration < 60 ? 1 : duration < 120 ? 5 : 10;
-  const ticks = [];
   
-  for (let i = startTime; i <= endTime; i += tickInterval) {
-    ticks.push(i);
+  // Calculate the appropriate label interval based on screen space
+  // We want labels at most 100px apart
+  const getLabelInterval = () => {
+    const windowWidth = window.innerWidth || 1920;
+    const availableWidth = windowWidth - trackLabelWidth - 40; // Account for padding
+    const pixelsPerSecond = availableWidth / duration;
+    const maxSecondsPerLabel = 100 / pixelsPerSecond;
+    
+    // Choose appropriate interval: 1, 2, 5, 10, 20, 30, 60, etc.
+    const intervals = [1, 2, 5, 10, 15, 20, 30, 60, 120, 300, 600];
+    for (const interval of intervals) {
+      if (interval >= maxSecondsPerLabel) {
+        return interval;
+      }
+    }
+    return 600; // Default for very long timelines
+  };
+  
+  const labelInterval = getLabelInterval();
+  const minorTickInterval = labelInterval / 5; // Add minor ticks between labels
+  
+  const majorTicks = []; // Ticks with labels
+  const minorTicks = []; // Ticks without labels
+  
+  for (let i = startTime; i <= endTime; i += minorTickInterval) {
+    minorTicks.push(i);
+    if (i % labelInterval === 0) {
+      majorTicks.push(i);
+    }
   }
   
   const handleClick = (e) => {
@@ -26,13 +50,13 @@ export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration 
   return (
     <div className="sticky top-0 z-10 bg-zinc-900/95 border-b border-white/10">
       <div className="relative h-8 bg-zinc-800/50 cursor-pointer" onClick={handleClick}>
-        {ticks.map((tick, idx) => {
-          const isMajor = tick % 10 === 0;
+        {minorTicks.map((tick) => {
+          const isMajor = majorTicks.includes(tick);
           const position = ((tick - startTime) / duration) * 100;
           
           return (
             <div
-              key={idx}
+              key={`tick-${tick}`}
               className={cn(
                 'absolute top-0 border-l border-zinc-600',
                 isMajor && 'border-zinc-500 h-full',
@@ -52,4 +76,3 @@ export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration 
     </div>
   );
 }
-
