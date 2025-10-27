@@ -12,10 +12,40 @@ export const useTimelineStore = create((set) => ({
   selectedClipId: null,
   
   // Actions
-  addClip: (clip) => set((state) => ({ 
-    clips: [...state.clips, clip],
-    selectedClipId: clip.id,
-  })),
+  addClip: (clip) => set((state) => {
+    const normalizedClip = {
+      ...clip,
+    };
+
+    if (normalizedClip.start == null) {
+      normalizedClip.start = 0;
+    }
+
+    if (normalizedClip.end == null) {
+      const fallbackDuration =
+        normalizedClip.duration ??
+        normalizedClip.endTrim ??
+        normalizedClip.startTrim ??
+        0;
+      normalizedClip.end = normalizedClip.start + fallbackDuration;
+    }
+
+    if (normalizedClip.duration == null) {
+      normalizedClip.duration = Math.max(
+        0,
+        (normalizedClip.end ?? 0) - (normalizedClip.start ?? 0)
+      );
+    }
+
+    if (normalizedClip.endTrim == null) {
+      normalizedClip.endTrim = normalizedClip.duration;
+    }
+
+    return {
+      clips: [...state.clips, normalizedClip],
+      selectedClipId: normalizedClip.id,
+    };
+  }),
 
   updateClip: (clipId, updates) => set((state) => ({
     clips: state.clips.map(clip => 
@@ -49,11 +79,19 @@ export const useTimelineStore = create((set) => ({
   setSelectedClip: (clipId) => set({ selectedClipId: clipId }),
 
   // Trim clip
-  trimClip: (clipId, start, end) => set((state) => ({
-    clips: state.clips.map((clip) =>
-      clip.id === clipId ? { ...clip, start, end } : clip
-    )
-  })),
+  trimClip: (clipId, start, end) =>
+    set((state) => ({
+      clips: state.clips.map((clip) =>
+        clip.id === clipId
+          ? {
+              ...clip,
+              start,
+              end,
+              duration: Math.max(0, end - start),
+            }
+          : clip
+      ),
+    })),
 
   // Split clip at current playhead
   splitClipAtPlayhead: (clipId) => set((state) => {

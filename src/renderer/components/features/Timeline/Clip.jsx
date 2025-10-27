@@ -169,6 +169,7 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   
   const handleDelete = (e) => {
     e.stopPropagation();
+    onSelect?.(clip);
     removeClip(clip.id);
   };
   

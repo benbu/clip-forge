@@ -2,7 +2,7 @@
  * Export Service - Handles video export and rendering
  */
 
-import { exportVideo, mergeClips } from './videoService';
+import { mergeClips, initVideoService } from './videoService';
 import { useTimelineStore } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
 
@@ -40,16 +40,48 @@ export class ExportService {
       if (clips.length === 0) {
         throw new Error('No clips to export');
       }
+
+      const initResult = await initVideoService();
+      const ffmpegReady =
+        initResult === true || initResult?.success === true;
+
+      if (!ffmpegReady) {
+        const initError = initResult?.error;
+        const pipelineError = new Error('Unable to initialize export pipeline');
+        if (initError) {
+          pipelineError.cause = initError;
+          pipelineError.details = initError.message || String(initError);
+        }
+        throw pipelineError;
+      }
       
       // Prepare clip data with file paths
-      const clipData = clips.map(clip => {
-        const mediaFile = mediaStore.files.find(f => f.id === clip.mediaId);
-        return {
-          path: mediaFile?.path,
-          start: clip.startTrim || 0,
-          end: clip.endTrim || mediaFile?.duration,
-        };
-      }).filter(clip => clip.path);
+      const clipData = [...clips]
+        .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+        .map((clip) => {
+          const mediaFile = mediaStore.files.find((f) => f.id === clip.mediaFileId);
+          if (!mediaFile) return null;
+
+          const source =
+            mediaFile.originalFile ||
+            mediaStore.fileBlobUrls?.[mediaFile.id] ||
+            mediaFile.path;
+
+          if (!source) return null;
+
+          const duration =
+            clip.duration ??
+            mediaFile.durationSeconds ??
+            Math.max(0, (clip.end ?? 0) - (clip.start ?? 0));
+
+          return {
+            id: clip.id,
+            source,
+        duration,
+            name: mediaFile.name,
+          };
+        })
+        .filter(Boolean);
       
       if (clipData.length === 0) {
         throw new Error('No valid clips found');
@@ -59,22 +91,31 @@ export class ExportService {
       this.updateProgress(10);
       
       // Merge all clips
-      const mergedBlob = await mergeClips(clipData);
+      const mergedData = await mergeClips(clipData);
       
       this.updateProgress(50);
       
-      // Convert to video buffer
-      const buffer = await mergedBlob.arrayBuffer();
+      // Normalize to Uint8Array
+      const mergedBuffer =
+        mergedData instanceof Uint8Array
+          ? mergedData
+          : new Uint8Array(await mergedData.arrayBuffer());
       
       this.updateProgress(70);
       
       // Apply export settings (resolution, quality, etc.)
-      const exportedBuffer = await this.applyExportSettings(buffer, options);
+      const exportedBuffer = await this.applyExportSettings(mergedBuffer, options);
       
       this.updateProgress(90);
       
       // Save to file
-      const filePath = options.outputPath || await this.getDefaultExportPath();
+      const filePath =
+        options.outputPath || (await this.getDefaultExportPath());
+
+      if (!filePath) {
+        throw new Error('Export cancelled');
+      }
+
       await this.saveExport(filePath, exportedBuffer);
       
       this.updateProgress(100);
@@ -122,8 +163,13 @@ export class ExportService {
    */
   async getDefaultExportPath() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const appDataPath = window.electronAPI?.getAppDataPath?.() || '';
-    return `${appDataPath}/exports/clipforge-${timestamp}.mp4`;
+    const defaultName = `ClipForge-${timestamp}.mp4`;
+
+    if (window.electronAPI?.chooseExportPath) {
+      return await window.electronAPI.chooseExportPath(defaultName);
+    }
+
+    return null;
   }
   
   /**
@@ -131,7 +177,7 @@ export class ExportService {
    */
   calculateTotalDuration(clipData) {
     return clipData.reduce((total, clip) => {
-      return total + (clip.end - clip.start);
+      return total + (clip.duration ?? 0);
     }, 0);
   }
   
@@ -185,4 +231,3 @@ export class ExportService {
 }
 
 export const exportService = new ExportService();
-

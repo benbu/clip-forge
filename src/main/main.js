@@ -1,4 +1,11 @@
-const { app, BrowserWindow, shell, desktopCapturer, ipcMain, dialog } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  shell,
+  desktopCapturer,
+  ipcMain,
+  dialog,
+} = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -60,10 +67,71 @@ ipcMain.handle('getScreenSources', async () => {
 
 ipcMain.handle('saveFile', async (event, filePath, buffer) => {
   try {
-    await fs.writeFile(filePath, buffer);
+    const directory = path.dirname(filePath);
+    await fs.mkdir(directory, { recursive: true });
+
+    const data =
+      buffer instanceof Uint8Array
+        ? Buffer.from(buffer)
+        : Buffer.from(buffer);
+
+    await fs.writeFile(filePath, data);
     return filePath;
   } catch (error) {
     console.error('Error saving file:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('logMessage', async (event, payload = {}) => {
+  try {
+    const { level = 'info', message = '', scope = 'app', stack = '' } = payload;
+    const timestamp = new Date().toISOString();
+    const logDir = path.join(app.getPath('userData'), 'logs');
+    await fs.mkdir(logDir, { recursive: true });
+    const filePath = path.join(logDir, 'clipforge.log');
+
+    const entryLines = [
+      `[${timestamp}] [${level.toUpperCase()}] [${scope}] ${message}`,
+    ];
+
+    if (stack) {
+      entryLines.push(stack);
+    }
+
+    entryLines.push(''); // trailing newline
+
+    await fs.appendFile(filePath, entryLines.join('\n'), 'utf8');
+
+    return filePath;
+  } catch (error) {
+    console.error('Error writing log entry:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('chooseExportPath', async (event, suggestedName) => {
+  try {
+    const defaultDir =
+      app.getPath('videos') || app.getPath('documents') || app.getPath('downloads');
+    const defaultPath = path.join(
+      defaultDir,
+      suggestedName || `ClipForge-${Date.now()}.mp4`
+    );
+
+    const result = await dialog.showSaveDialog({
+      title: 'Export Video',
+      defaultPath,
+      filters: [
+        { name: 'MP4 Video', extensions: ['mp4'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled) return null;
+    return result.filePath;
+  } catch (error) {
+    console.error('Error choosing export path:', error);
     throw error;
   }
 });

@@ -8,6 +8,10 @@ let ffmpegWorker = null;
  * Initialize FFmpeg worker
  */
 export async function initVideoService() {
+  if (ffmpegWorker) {
+    return { success: true, module: ffmpegWorker };
+  }
+
   try {
     // Import FFmpeg worker functions
     const ffmpegModule = await import('../../media/ffmpegWorker.js');
@@ -16,20 +20,27 @@ export async function initVideoService() {
     // Initialize FFmpeg
     await ffmpegModule.initFFmpeg();
     
-    return true;
+    return { success: true, module: ffmpegWorker };
   } catch (error) {
     console.error('Failed to initialize video service:', error);
-    return false;
+    return { success: false, error };
   }
+}
+
+async function ensureInitialized() {
+  if (ffmpegWorker) return ffmpegWorker;
+  const result = await initVideoService();
+  if (result?.success) return ffmpegWorker;
+  const err =
+    result?.error || new Error('Video service not initialized');
+  throw err;
 }
 
 /**
  * Trim video clip
  */
 export async function trimClip(filePath, startTime, endTime) {
-  if (!ffmpegWorker) {
-    throw new Error('Video service not initialized');
-  }
+  await ensureInitialized();
   
   try {
     const outputData = await ffmpegWorker.trimVideo(
@@ -50,9 +61,7 @@ export async function trimClip(filePath, startTime, endTime) {
  * Concatenate multiple clips
  */
 export async function mergeClips(clips) {
-  if (!ffmpegWorker) {
-    throw new Error('Video service not initialized');
-  }
+  await ensureInitialized();
   
   try {
     const outputData = await ffmpegWorker.concatenateClips(clips, 'merged.mp4');
@@ -68,9 +77,7 @@ export async function mergeClips(clips) {
  * Export video with specific settings
  */
 export async function exportVideo(filePath, options = {}) {
-  if (!ffmpegWorker) {
-    throw new Error('Video service not initialized');
-  }
+  await ensureInitialized();
   
   try {
     const outputData = await ffmpegWorker.exportVideo(filePath, 'exported.mp4', {
@@ -91,9 +98,7 @@ export async function exportVideo(filePath, options = {}) {
  * Generate thumbnail for video
  */
 export async function generateThumbnail(filePath, time = 1) {
-  if (!ffmpegWorker) {
-    throw new Error('Video service not initialized');
-  }
+  await ensureInitialized();
   
   try {
     const thumbnailData = await ffmpegWorker.extractThumbnail(filePath, time);
@@ -108,4 +113,3 @@ export async function generateThumbnail(filePath, time = 1) {
     throw error;
   }
 }
-

@@ -1,207 +1,220 @@
 /**
- * FFmpeg Worker Thread
- * Handles video processing in a separate worker thread to avoid blocking the main UI
+ * FFmpeg Utility Module
+ * Handles video processing in a dedicated FFmpeg instance so UI remains responsive.
+ *
+ * This module targets the modern @ffmpeg/ffmpeg >= 0.12 APIs which expose the `FFmpeg`
+ * class instead of the legacy `createFFmpeg` helper.
  */
 
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile } from '@ffmpeg/util';
 
-let ffmpeg = null;
+let ffmpeg;
+let loadPromise;
 
-/**
- * Initialize FFmpeg instance
- */
-export async function initFFmpeg() {
-  if (ffmpeg) return ffmpeg;
-  
-  ffmpeg = createFFmpeg({
-    log: true,
-    progress: (progress) => {
-      self.postMessage({
-        type: 'progress',
-        progress: progress.ratio
+async function getFFmpeg() {
+  if (ffmpeg?.loaded) return ffmpeg;
+
+  if (!ffmpeg) {
+    ffmpeg = new FFmpeg();
+    ffmpeg.on('log', ({ type, message }) => {
+      if (import.meta.env?.DEV) {
+        console.debug(`[ffmpeg:${type}] ${message}`);
+      }
+    });
+  }
+
+  if (!loadPromise) {
+    loadPromise = ffmpeg
+      .load()
+      .then(() => ffmpeg)
+      .catch((error) => {
+        ffmpeg = undefined;
+        loadPromise = undefined;
+        throw error;
       });
-    }
-  });
-  
-  await ffmpeg.load();
+  }
+
+  await loadPromise;
   return ffmpeg;
 }
 
-/**
- * Trim video to specified in/out points
- * @param {string} inputPath - Path to input video file
- * @param {number} startTime - Start time in seconds
- * @param {number} endTime - End time in seconds
- * @param {string} outputPath - Path to output file
- * @returns {Promise<Uint8Array>} Output video data
- */
-export async function trimVideo(inputPath, startTime, endTime, outputPath) {
-  const ffmpegInstance = await initFFmpeg();
-  
+async function writeInputFile(instance, name, source) {
+  if (!source) {
+    throw new Error(`Missing media source for ${name}`);
+  }
+
+  const data = await fetchFile(source);
+  if (!data || data.length === 0) {
+    throw new Error(`Unable to load media data for ${name}`);
+  }
+
+  await instance.writeFile(name, data);
+  return name;
+}
+
+async function safeDelete(instance, path) {
   try {
-    // Read input file
-    const data = await fetchFile(inputPath);
-    ffmpegInstance.FS('writeFile', 'input.mp4', data);
-    
-    // Calculate duration
-    const duration = endTime - startTime;
-    
-    // Execute trim command
-    await ffmpegInstance.run(
-      '-i', 'input.mp4',
-      '-ss', startTime.toString(),
-      '-t', duration.toString(),
-      '-c', 'copy', // Copy stream (fast, no re-encoding)
-      'output.mp4'
-    );
-    
-    // Read output file
-    const outputData = ffmpegInstance.FS('readFile', 'output.mp4');
-    
-    // Clean up
-    ffmpegInstance.FS('unlink', 'input.mp4');
-    ffmpegInstance.FS('unlink', 'output.mp4');
-    
-    return outputData;
+    await instance.deleteFile(path);
+  } catch {
+    // ignore cleanup failures
+  }
+}
+
+async function runCommand(instance, args) {
+  const resultCode = await instance.exec(args);
+  if (resultCode !== 0) {
+    throw new Error(`FFmpeg exited with code ${resultCode} (${args.join(' ')})`);
+  }
+}
+
+/**
+ * Public API
+ */
+export async function initFFmpeg() {
+  await getFFmpeg();
+  return ffmpeg;
+}
+
+export async function trimVideo(source, startTime, endTime, outputName = 'output.mp4') {
+  const instance = await getFFmpeg();
+  const inputName = 'trim-input.mp4';
+  const outputFile = outputName || 'output.mp4';
+
+  try {
+    await writeInputFile(instance, inputName, source);
+
+    const duration = Math.max(0, endTime - startTime);
+    await runCommand(instance, [
+      '-i',
+      inputName,
+      '-ss',
+      startTime.toString(),
+      '-t',
+      duration.toString(),
+      '-c',
+      'copy',
+      outputFile,
+    ]);
+
+    return await instance.readFile(outputFile);
   } catch (error) {
     console.error('Error trimming video:', error);
     throw error;
+  } finally {
+    await safeDelete(instance, inputName);
+    await safeDelete(instance, outputFile);
   }
 }
 
-/**
- * Concatenate multiple video clips
- * @param {Array<{path: string, start?: number, end?: number}>} clips - Array of clip info
- * @param {string} outputPath - Path to output file
- * @returns {Promise<Uint8Array>} Output video data
- */
-export async function concatenateClips(clips, outputPath) {
-  const ffmpegInstance = await initFFmpeg();
-  
+export async function concatenateClips(clips, outputName = 'output.mp4') {
+  const instance = await getFFmpeg();
+  const inputNames = [];
+  const concatListName = 'concat.txt';
+  const outputFile = outputName;
+
   try {
-    // Write input files
-    for (let i = 0; i < clips.length; i++) {
-      const data = await fetchFile(clips[i].path);
-      ffmpegInstance.FS('writeFile', `input_${i}.mp4`, data);
+    for (let i = 0; i < clips.length; i += 1) {
+      const clip = clips[i];
+      const fileName = `input_${i}.mp4`;
+      await writeInputFile(instance, fileName, clip.source ?? clip.path);
+      inputNames.push(fileName);
     }
-    
-    // Create concat file
-    const concatContent = clips.map((_, i) => `file 'input_${i}.mp4'`).join('\n');
-    ffmpegInstance.FS('writeFile', 'concat.txt', concatContent);
-    
-    // Execute concat command
-    await ffmpegInstance.run(
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', 'concat.txt',
-      '-c', 'copy',
-      'output.mp4'
-    );
-    
-    // Read output file
-    const outputData = ffmpegInstance.FS('readFile', 'output.mp4');
-    
-    // Clean up
-    clips.forEach((_, i) => ffmpegInstance.FS('unlink', `input_${i}.mp4`));
-    ffmpegInstance.FS('unlink', 'concat.txt');
-    ffmpegInstance.FS('unlink', 'output.mp4');
-    
-    return outputData;
+
+    const concatContent = inputNames.map((name) => `file '${name}'`).join('\n');
+    await instance.writeFile(concatListName, concatContent);
+
+    await runCommand(instance, [
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      concatListName,
+      '-c',
+      'copy',
+      outputFile,
+    ]);
+
+    return await instance.readFile(outputFile);
   } catch (error) {
     console.error('Error concatenating clips:', error);
     throw error;
+  } finally {
+    for (const name of inputNames) {
+      await safeDelete(instance, name);
+    }
+    await safeDelete(instance, concatListName);
+    await safeDelete(instance, outputFile);
   }
 }
 
-/**
- * Export video to specific resolution and format
- * @param {string} inputPath - Path to input video file
- * @param {string} outputPath - Path to output file
- * @param {Object} options - Export options (resolution, codec, etc.)
- * @returns {Promise<Uint8Array>} Output video data
- */
-export async function exportVideo(inputPath, outputPath, options = {}) {
-  const ffmpegInstance = await initFFmpeg();
-  
+export async function exportVideo(source, outputName = 'exported.mp4', options = {}) {
+  const instance = await getFFmpeg();
+  const inputName = 'export-input.mp4';
+  const outputFile = outputName || 'exported.mp4';
+
   try {
-    // Read input file
-    const data = await fetchFile(inputPath);
-    ffmpegInstance.FS('writeFile', 'input.mp4', data);
-    
-    // Build FFmpeg command
-    const cmd = ['-i', 'input.mp4'];
-    
-    // Add resolution if specified
+    await writeInputFile(instance, inputName, source);
+
+    const command = ['-i', inputName];
+
     if (options.resolution) {
-      cmd.push('-vf', `scale=${options.resolution}`);
+      command.push('-vf', `scale=${options.resolution}`);
     }
-    
-    // Add bitrate if specified
+
     if (options.bitrate) {
-      cmd.push('-b:v', options.bitrate);
+      command.push('-b:v', options.bitrate);
     }
-    
-    // Add codec
-    cmd.push('-c:v', options.codec || 'libx264');
-    cmd.push('-c:a', 'aac');
-    
-    // Add preset for faster encoding
-    cmd.push('-preset', 'fast');
-    cmd.push('-crf', options.crf || '23'); // Quality (lower = better, 18-28 is good range)
-    
-    cmd.push('output.mp4');
-    
-    // Execute command
-    await ffmpegInstance.run(...cmd);
-    
-    // Read output file
-    const outputData = ffmpegInstance.FS('readFile', 'output.mp4');
-    
-    // Clean up
-    ffmpegInstance.FS('unlink', 'input.mp4');
-    ffmpegInstance.FS('unlink', 'output.mp4');
-    
-    return outputData;
+
+    command.push('-c:v', options.codec || 'libx264', '-c:a', 'aac', '-preset', 'fast');
+
+    if (options.crf) {
+      command.push('-crf', `${options.crf}`);
+    } else {
+      command.push('-crf', '23');
+    }
+
+    command.push(outputFile);
+
+    await runCommand(instance, command);
+
+    return await instance.readFile(outputFile);
   } catch (error) {
     console.error('Error exporting video:', error);
     throw error;
+  } finally {
+    await safeDelete(instance, inputName);
+    await safeDelete(instance, outputFile);
   }
 }
 
-/**
- * Extract video frame as thumbnail
- * @param {string} inputPath - Path to input video file
- * @param {number} time - Time in seconds to extract frame
- * @returns {Promise<Uint8Array>} Image data (PNG)
- */
-export async function extractThumbnail(inputPath, time) {
-  const ffmpegInstance = await initFFmpeg();
-  
+export async function extractThumbnail(source, time = 1, outputName = 'thumbnail.png') {
+  const instance = await getFFmpeg();
+  const inputName = 'thumb-input.mp4';
+  const outputFile = outputName;
+
   try {
-    // Read input file
-    const data = await fetchFile(inputPath);
-    ffmpegInstance.FS('writeFile', 'input.mp4', data);
-    
-    // Extract frame
-    await ffmpegInstance.run(
-      '-i', 'input.mp4',
-      '-ss', time.toString(),
-      '-vframes', '1',
-      '-vf', 'scale=320:-1', // Scale to 320px width
-      'thumbnail.png'
-    );
-    
-    // Read thumbnail
-    const thumbnailData = ffmpegInstance.FS('readFile', 'thumbnail.png');
-    
-    // Clean up
-    ffmpegInstance.FS('unlink', 'input.mp4');
-    ffmpegInstance.FS('unlink', 'thumbnail.png');
-    
-    return thumbnailData;
+    await writeInputFile(instance, inputName, source);
+
+    await runCommand(instance, [
+      '-i',
+      inputName,
+      '-ss',
+      time.toString(),
+      '-vframes',
+      '1',
+      '-vf',
+      'scale=320:-1',
+      outputFile,
+    ]);
+
+    return await instance.readFile(outputFile);
   } catch (error) {
     console.error('Error extracting thumbnail:', error);
     throw error;
+  } finally {
+    await safeDelete(instance, inputName);
+    await safeDelete(instance, outputFile);
   }
 }
-

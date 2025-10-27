@@ -102,7 +102,7 @@ export function Timeline() {
       
       if (data && data.type === 'media-file' && data.file) {
         // Convert media file to timeline clip
-        const duration = parseDurationToSeconds(data.file.duration);
+        const duration = parseDurationToSeconds(data.file.duration) || data.file.durationSeconds || 0;
         
         const newClip = {
           id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -110,9 +110,10 @@ export function Timeline() {
           name: data.file.name,
           start: playheadPosition,
           end: playheadPosition + duration,
+          duration,
           track: 0, // Default to first track
           startTrim: 0,
-          endTrim: 0,
+          endTrim: duration,
           volume: 100,
           createdAt: new Date().toISOString(),
         };
