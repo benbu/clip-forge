@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ZoomIn, ZoomOut, Scissors, Grid } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,12 +17,19 @@ export function Timeline() {
     setZoom,
     toggleSnapToGrid,
     splitClipAtPlayhead,
-    addClip
+    addClip,
+    selectedClipId,
+    removeClip,
   } = useTimelineStore();
   
   const [isDragOver, setIsDragOver] = useState(false);
   const [zoomInput, setZoomInput] = useState(zoom.toFixed(2));
   const zoomInputRef = useRef(null);
+  const timelineRef = useRef(null);
+
+  const focusTimeline = useCallback(() => {
+    timelineRef.current?.focus();
+  }, []);
   
   const handleZoomInputChange = (value) => {
     setZoomInput(value);
@@ -111,6 +118,7 @@ export function Timeline() {
         };
         
         addClip(newClip);
+        focusTimeline();
       }
     } catch (error) {
       console.error('Failed to handle drop:', error);
@@ -135,10 +143,20 @@ export function Timeline() {
   
   return (
     <div 
+      ref={timelineRef}
       className={`h-full flex flex-col bg-zinc-900/60 border border-white/10 rounded-lg overflow-hidden ${isDragOver ? 'ring-2 ring-indigo-500 bg-indigo-900/20' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          if (selectedClipId) {
+            removeClip(selectedClipId);
+          }
+        }
+      }}
+      onMouseDown={focusTimeline}
     >
       {/* Timeline Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/80">
@@ -221,6 +239,7 @@ export function Timeline() {
                       clips={clips.filter(c => c.track === track.id)}
                       zoom={zoom}
                       visibleDuration={visibleDuration}
+                      onSelectClip={focusTimeline}
                     />
                   ))}
                 </div>

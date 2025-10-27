@@ -9,10 +9,12 @@ export const useTimelineStore = create((set) => ({
   playheadPosition: 0, // in seconds
   zoom: 1, // 0.1x to 10x
   snapToGrid: true,
+  selectedClipId: null,
   
   // Actions
   addClip: (clip) => set((state) => ({ 
-    clips: [...state.clips, clip] 
+    clips: [...state.clips, clip],
+    selectedClipId: clip.id,
   })),
 
   updateClip: (clipId, updates) => set((state) => ({
@@ -21,9 +23,11 @@ export const useTimelineStore = create((set) => ({
     )
   })),
 
-  removeClip: (clipId) => set((state) => ({ 
-    clips: state.clips.filter(c => c.id !== clipId) 
-  })),
+  removeClip: (clipId) => set((state) => {
+    const remaining = state.clips.filter(c => c.id !== clipId);
+    const nextSelected = state.selectedClipId === clipId ? null : state.selectedClipId;
+    return { clips: remaining, selectedClipId: nextSelected };
+  }),
 
   reorderClips: (clipId, newPosition) => set((state) => {
     const clips = [...state.clips];
@@ -42,6 +46,8 @@ export const useTimelineStore = create((set) => ({
 
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
 
+  setSelectedClip: (clipId) => set({ selectedClipId: clipId }),
+
   // Trim clip
   trimClip: (clipId, start, end) => set((state) => ({
     clips: state.clips.map((clip) =>
@@ -52,17 +58,21 @@ export const useTimelineStore = create((set) => ({
   // Split clip at current playhead
   splitClipAtPlayhead: (clipId) => set((state) => {
     const playhead = state.playheadPosition;
+    let selectedClipId = state.selectedClipId;
     const nextClips = [];
+
     for (const clip of state.clips) {
       if (clip.id === clipId && clip.start <= playhead && playhead <= clip.end) {
+        const rightClipId = `${clip.id}-split-${Date.now()}`;
         const leftClip = { ...clip, end: playhead };
-        const rightClip = { ...clip, id: `${clip.id}-split-${Date.now()}`, start: playhead };
+        const rightClip = { ...clip, id: rightClipId, start: playhead };
         nextClips.push(leftClip, rightClip);
+        selectedClipId = rightClipId;
       } else {
         nextClips.push(clip);
       }
     }
-    return { clips: nextClips };
+
+    return { clips: nextClips, selectedClipId };
   }),
 }));
-

@@ -5,13 +5,21 @@ import { useTimelineStore } from '@/store/timelineStore';
 const SNAP_THRESHOLD = 0.5; // seconds
 
 export function Clip({ clip, zoom, visibleDuration, onSelect }) {
-  const [isSelected, setIsSelected] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState(null);
   const clipRef = useRef(null);
   
-  const { updateClip, removeClip, trimClip, clips, snapToGrid } = useTimelineStore();
+  const { 
+    updateClip, 
+    removeClip, 
+    trimClip, 
+    clips, 
+    snapToGrid,
+    selectedClipId,
+    setSelectedClip,
+  } = useTimelineStore();
+  const isSelected = selectedClipId === clip.id;
   
   // Calculate position and width based on visible duration (affected by zoom)
   const MAX_DURATION = visibleDuration || 120;
@@ -66,9 +74,14 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   };
   
   const handleMouseDown = (e) => {
-    if (e.target.classList.contains('trim-handle')) return;
+    if (e.target.classList.contains('trim-handle')) {
+      onSelect?.(clip);
+      setSelectedClip(clip.id);
+      return;
+    }
     
-    setIsSelected(true);
+    setSelectedClip(clip.id);
+    onSelect?.(clip);
     setIsDragging(true);
     
     const startX = e.clientX;
@@ -116,6 +129,8 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   
   const handleTrim = (side, e) => {
     e.stopPropagation();
+    setSelectedClip(clip.id);
+    onSelect?.(clip);
     
     const startX = e.clientX;
     const startStart = clip.start;
@@ -189,7 +204,7 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
         onMouseLeave={() => setIsHovered(false)}
         onMouseDown={handleMouseDown}
         onClick={() => {
-          setIsSelected(!isSelected);
+          setSelectedClip(clip.id);
           if (onSelect) onSelect(clip);
         }}
       >

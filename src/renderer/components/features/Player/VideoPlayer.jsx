@@ -13,8 +13,13 @@ import { shortcuts } from '@/lib/keyboardShortcuts';
 
 export function VideoPlayer() {
   const videoRef = useRef(null);
-  const { selectedFile, selectedFileData, fileBlobUrls, setFileBlobUrl } = useMediaStore();
-  const { playheadPosition, setPlayheadPosition } = useTimelineStore();
+  const selectedFile = useMediaStore((state) => state.selectedFile);
+  const selectedFileData = useMediaStore((state) => state.selectedFileData);
+  const setFileBlobUrl = useMediaStore((state) => state.setFileBlobUrl);
+  const selectFile = useMediaStore((state) => state.selectFile);
+  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
+  const setPlayheadPosition = useTimelineStore((state) => state.setPlayheadPosition);
+  const clips = useTimelineStore((state) => state.clips);
   const { 
     isPlaying, 
     currentTime, 
@@ -31,6 +36,19 @@ export function VideoPlayer() {
   
   const [showControls, setShowControls] = useState(true);
   const [videoSrc, setVideoSrc] = useState(null);
+
+  // Auto-select clip media when the playhead moves across the timeline
+  useEffect(() => {
+    if (!clips?.length) return;
+
+    const clipAtPlayhead = clips.find(
+      (clip) => playheadPosition >= clip.start && playheadPosition <= clip.end
+    );
+
+    if (clipAtPlayhead?.mediaFileId && clipAtPlayhead.mediaFileId !== selectedFile) {
+      selectFile(clipAtPlayhead.mediaFileId);
+    }
+  }, [clips, playheadPosition, selectFile, selectedFile]);
   
   // Load selected file's video source
   useEffect(() => {
@@ -71,10 +89,13 @@ export function VideoPlayer() {
   // Sync playhead position
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || Math.abs(video.currentTime - playheadPosition) < 0.1) return;
+    if (!video) return;
+
+    if (Math.abs(video.currentTime - playheadPosition) < 0.01) return;
     
     video.currentTime = playheadPosition;
-  }, [playheadPosition]);
+    seek(playheadPosition);
+  }, [playheadPosition, seek]);
   
   // Update currentTime from video element
   useEffect(() => {
@@ -82,7 +103,9 @@ export function VideoPlayer() {
     if (!video) return;
     
     const handleTimeUpdate = () => {
-      setPlayheadPosition(video.currentTime);
+      const current = video.currentTime;
+      seek(current);
+      setPlayheadPosition(current);
     };
     
     const handleLoadedMetadata = () => {
@@ -96,7 +119,7 @@ export function VideoPlayer() {
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [setPlayheadPosition, setDuration]);
+  }, [seek, setPlayheadPosition, setDuration]);
   
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   
