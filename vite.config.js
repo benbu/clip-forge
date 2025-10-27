@@ -19,5 +19,10 @@ export default defineConfig({
     outDir: 'dist/renderer',
     emptyOutDir: true,
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.js',
+    globals: true,
+    css: true,
+  },
 });
-
