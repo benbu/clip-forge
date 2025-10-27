@@ -4,7 +4,7 @@ import { useTimelineStore } from '@/store/timelineStore';
 
 const SNAP_THRESHOLD = 0.5; // seconds
 
-export function Clip({ clip, zoom, onSelect }) {
+export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   const [isSelected, setIsSelected] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -13,8 +13,8 @@ export function Clip({ clip, zoom, onSelect }) {
   
   const { updateClip, removeClip, trimClip, clips, snapToGrid } = useTimelineStore();
   
-  // Calculate position and width based on fixed max duration window resizing
-  const MAX_DURATION = 120;
+  // Calculate position and width based on visible duration (affected by zoom)
+  const MAX_DURATION = visibleDuration || 120;
   const clipDuration = Math.max(0.1, (clip.end ?? (clip.start + (clip.duration ?? 0))) - clip.start);
   const left = (clip.start / MAX_DURATION) * 100;
   const width = (clipDuration / MAX_DURATION) * 100;
@@ -34,7 +34,7 @@ export function Clip({ clip, zoom, onSelect }) {
     // Add grid snap points if enabled
     if (snapToGrid) {
       const gridSize = 1; // 1 second grid
-      for (let i = 0; i <= 120; i += gridSize) {
+      for (let i = 0; i <= MAX_DURATION; i += gridSize) {
         snapPoints.push({ position: i, type: 'grid' });
       }
     }
@@ -164,7 +164,7 @@ export function Clip({ clip, zoom, onSelect }) {
         <div
           className="absolute top-0 bottom-0 w-0.5 bg-indigo-400 pointer-events-none z-30"
           style={{
-            left: `${(snapGuide.position / 120) * 100}%`
+            left: `${(snapGuide.position / MAX_DURATION) * 100}%`
           }}
         />
       )}

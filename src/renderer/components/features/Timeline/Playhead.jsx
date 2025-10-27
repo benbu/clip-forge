@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTimelineStore } from '@/store/timelineStore';
 
-export function Playhead({ position, zoom }) {
+export function Playhead({ position, zoom, visibleDuration }) {
   const trackLabelWidth = 160;
-  const maxDuration = 120;
+  const maxDuration = visibleDuration || 120;
   const percentage = (position / maxDuration) * 100;
   const { setPlayheadPosition } = useTimelineStore();
   
@@ -26,7 +26,8 @@ export function Playhead({ position, zoom }) {
     const timelineWidth = rect.width - trackLabelWidth;
     const mouseX = clientX - rect.left - trackLabelWidth;
     const time = (mouseX / timelineWidth) * maxDuration;
-    return Math.max(0, Math.min(maxDuration, time));
+    const result = Math.max(0, Math.min(maxDuration, time));
+    return result;
   };
   
   useEffect(() => {

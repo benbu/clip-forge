@@ -2,11 +2,12 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
 
-export function TimeRuler({ startTime, endTime, zoom, playhead }) {
+export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration }) {
   const { setPlayheadPosition } = useTimelineStore();
   const trackLabelWidth = 160; // Width of the track label area (w-40 = 160px)
-  const duration = endTime - startTime;
-  const tickInterval = zoom < 1 ? 10 : zoom < 1.5 ? 5 : 1;
+  const duration = visibleDuration || (endTime - startTime);
+  // Adjust tick interval based on visible duration
+  const tickInterval = duration < 60 ? 1 : duration < 120 ? 5 : 10;
   const ticks = [];
   
   for (let i = startTime; i <= endTime; i += tickInterval) {
@@ -18,7 +19,7 @@ export function TimeRuler({ startTime, endTime, zoom, playhead }) {
     const timelineWidth = rect.width - trackLabelWidth;
     const clickX = e.clientX - rect.left - trackLabelWidth;
     const time = (clickX / timelineWidth) * duration;
-    const clampedTime = Math.max(startTime, Math.min(endTime, startTime + time));
+    const clampedTime = Math.max(0, Math.min(duration, time));
     setPlayheadPosition(clampedTime);
   };
   

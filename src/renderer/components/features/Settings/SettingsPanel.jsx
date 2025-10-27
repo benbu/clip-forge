@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Settings, Palette, Edit3, Video, Download, Code } from 'lucide-react';
+import { Palette, Edit3, Video, Download, Code } from 'lucide-react';
 import { Card } from '../../ui/Card';
-import { Button } from '../../ui/Button';
 import { AppearanceSettings } from './AppearanceSettings';
 import { EditorSettings } from './EditorSettings';
 import { RecordingSettings } from './RecordingSettings';
@@ -70,19 +69,6 @@ export function SettingsPanel() {
       {/* Settings Content Area - Full Width */}
       <div className="flex-1 overflow-y-auto py-4">
         {renderSettingsContent()}
-      </div>
-
-      {/* Settings Actions */}
-      <div className="pt-2 border-t border-white/10 flex items-center gap-1">
-        <Button variant="secondary" className="flex-1" size="sm">
-          Reset to Defaults
-        </Button>
-        <Button variant="ghost" className="flex-1" size="sm">
-          Export Settings
-        </Button>
-        <Button variant="ghost" className="flex-1" size="sm">
-          Import Settings
-        </Button>
       </div>
     </Card>
   );

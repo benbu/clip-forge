@@ -73,6 +73,24 @@ export function AdvancedSettings() {
           </Button>
         </div>
       </div>
+
+      {/* Settings Management */}
+      <div>
+        <h4 className="text-xs font-medium text-zinc-300 mb-2">Settings Management</h4>
+        <div className="bg-zinc-900/50 rounded-lg p-3">
+          <div className="flex items-center gap-1">
+            <Button variant="secondary" className="flex-1" size="sm">
+              Reset to Defaults
+            </Button>
+            <Button variant="ghost" className="flex-1" size="sm">
+              Export Settings
+            </Button>
+            <Button variant="ghost" className="flex-1" size="sm">
+              Import Settings
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

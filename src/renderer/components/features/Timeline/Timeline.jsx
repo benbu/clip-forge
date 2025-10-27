@@ -150,26 +150,36 @@ export function Timeline() {
       
       {/* Timeline Content */}
       <div className="flex-1 overflow-auto">
-        {/* Time Ruler */}
-        <TimeRuler startTime={0} endTime={120} zoom={zoom} playhead={playheadPosition} />
-        
-        {/* Tracks Container */}
-        <div className="relative">
-          {/* Playhead */}
-          <Playhead position={playheadPosition} zoom={zoom} />
+        {(() => {
+          const MAX_DURATION = 120;
+          const visibleDuration = MAX_DURATION / zoom;
           
-          {/* Tracks */}
-          <div className="border-t border-white/10">
-            {tracks.map(track => (
-              <Track
-                key={track.id}
-                track={track}
-                clips={clips.filter(c => c.track === track.id)}
-                zoom={zoom}
-              />
-            ))}
-          </div>
-        </div>
+          return (
+            <>
+              {/* Time Ruler */}
+              <TimeRuler startTime={0} endTime={visibleDuration} zoom={zoom} playhead={playheadPosition} visibleDuration={visibleDuration} />
+              
+              {/* Tracks Container */}
+              <div className="relative">
+                {/* Playhead */}
+                <Playhead position={playheadPosition} zoom={zoom} visibleDuration={visibleDuration} />
+                
+                {/* Tracks */}
+                <div className="border-t border-white/10">
+                  {tracks.map(track => (
+                    <Track
+                      key={track.id}
+                      track={track}
+                      clips={clips.filter(c => c.track === track.id)}
+                      zoom={zoom}
+                      visibleDuration={visibleDuration}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

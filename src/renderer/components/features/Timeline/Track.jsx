@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/Switch';
 import { Clip } from './Clip';
 import { cn } from '@/lib/utils';
 
-export function Track({ track, clips, zoom }) {
+export function Track({ track, clips, zoom, visibleDuration }) {
   const [isVisible, setIsVisible] = useState(true);
   const [isLocked, setIsLocked] = useState(false);
   const [volume, setVolume] = useState(100);
@@ -45,7 +45,7 @@ export function Track({ track, clips, zoom }) {
         {/* Clip Area */}
         <div className="flex-1 relative overflow-visible">
           {clips.map(clip => (
-            <Clip key={clip.id} clip={clip} zoom={zoom} />
+            <Clip key={clip.id} clip={clip} zoom={zoom} visibleDuration={visibleDuration} />
           ))}
         </div>
       </div>
