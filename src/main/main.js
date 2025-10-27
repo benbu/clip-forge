@@ -1,5 +1,6 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, desktopCapturer, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs').promises;
 
 let mainWindow;
 
@@ -39,6 +40,29 @@ const createMainWindow = () => {
     return { action: 'deny' };
   });
 };
+
+// IPC Handlers
+ipcMain.handle('getScreenSources', async () => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['window', 'screen']
+    });
+    return sources;
+  } catch (error) {
+    console.error('Error getting screen sources:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('saveFile', async (event, filePath, buffer) => {
+  try {
+    await fs.writeFile(filePath, buffer);
+    return filePath;
+  } catch (error) {
+    console.error('Error saving file:', error);
+    throw error;
+  }
+});
 
 app.whenReady().then(() => {
   createMainWindow();

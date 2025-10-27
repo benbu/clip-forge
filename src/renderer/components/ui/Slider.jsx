@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export function Slider({ 
-  value, 
-  onChange, 
+  value = [0], 
+  onChange,
+  onValueChange, 
   min = 0, 
   max = 100, 
   step = 1,
@@ -12,7 +13,10 @@ export function Slider({
   ...props 
 }) {
   const [isDragging, setIsDragging] = useState(false);
-  const percentage = ((value - min) / (max - min)) * 100;
+  
+  // Support both single value and array of values
+  const actualValue = Array.isArray(value) ? value[0] : value;
+  const percentage = ((actualValue - min) / (max - min)) * 100;
   
   return (
     <div className={cn('flex items-center gap-3', className)}>
@@ -26,8 +30,15 @@ export function Slider({
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
+          value={actualValue}
+          onChange={(e) => {
+            const newValue = Number(e.target.value);
+            if (onValueChange) {
+              onValueChange([newValue]);
+            } else if (onChange) {
+              onChange(newValue);
+            }
+          }}
           className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
           onMouseDown={() => setIsDragging(true)}
           onMouseUp={() => setIsDragging(false)}
@@ -36,10 +47,9 @@ export function Slider({
       </div>
       {showValue && (
         <div className="text-sm text-zinc-400 min-w-[3rem] text-right">
-          {value}
+          {actualValue}
         </div>
       )}
     </div>
   );
 }
-

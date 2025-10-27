@@ -12,3 +12,10 @@ html, body, #root {
   outline-color: rgb(99 102 241 / 0.8);
 }
 
+/* Resize handle styles */
+.resize-handle {
+  position: relative;
+  flex-shrink: 0;
+  touch-action: none;
+}
+

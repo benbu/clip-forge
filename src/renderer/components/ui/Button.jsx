@@ -9,7 +9,10 @@ export function Button({
   iconPosition = 'left',
   isLoading = false,
   disabled = false,
+  tooltip,
+  ariaLabel,
   className,
+  iconOnly, // Destructure to prevent passing to DOM
   ...props 
 }) {
   const baseStyles = 'inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-900';
@@ -27,7 +30,7 @@ export function Button({
     lg: 'px-6 py-3 text-base gap-2.5',
   };
   
-  const iconOnly = {
+  const iconOnlySizes = {
     sm: 'p-1.5',
     md: 'p-2',
     lg: 'p-3',
@@ -40,10 +43,12 @@ export function Button({
       className={cn(
         baseStyles,
         variants[variant],
-        isIconOnly ? iconOnly[size] : sizes[size],
+        isIconOnly ? iconOnlySizes[size] : sizes[size],
         className
       )}
       disabled={disabled || isLoading}
+      aria-label={tooltip || ariaLabel || children}
+      title={tooltip}
       {...props}
     >
       {isLoading && (

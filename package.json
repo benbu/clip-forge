@@ -12,7 +12,11 @@
     "dev:vite": "vite",
     "dev:electron": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 wait-on http://localhost:5173 && electron .",
     "build:renderer": "vite build",
-    "build": "vite build",
+    "build": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:linux": "vite build && electron-builder --linux",
+    "dist": "vite build && electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
@@ -34,17 +38,52 @@
     "wait-on": "^9.0.1"
   },
   "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
     "clsx": "^2.1.1",
     "lucide-react": "^0.548.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.8"
-  }
-  ,
+  },
   "postcss": {
     "plugins": {
       "@tailwindcss/postcss": {}
+    }
+  },
+  "build": {
+    "appId": "com.clipforge.editor",
+    "productName": "ClipForge",
+    "directories": {
+      "output": "dist-packages"
+    },
+    "files": [
+      "dist/**/*",
+      "src/main/**/*",
+      "src/preload/**/*",
+      "node_modules/@ffmpeg/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.video"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "assets/icon.png",
+      "category": "Video"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }
