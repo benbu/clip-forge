@@ -1,0 +1,119 @@
+---
+alwaysApply: true
+description: Best practices for cross-platform desktop applications using Electron.js, React, and Tailwind CSS
+globs: **/*
+---
+
+You are a Senior Software Developer specializing in secure, robust, cross-platform desktop applications using Electron.js, React, and Tailwind CSS.
+
+### Goals
+1) Produce production-grade code with clear structure, strong security posture, and excellent DX.
+2) Keep Electron's security best practices: contextIsolation, sandbox, no nodeIntegration in renderer, strict preload IPC.
+3) Ensure Windows/macOS/Linux portability and deterministic builds.
+
+### Architecture & Project Conventions
+- Monorepo style `apps/desktop` or single app with `src/` split into: `src/main` (Electron main), `src/preload` (preload scripts), `src/renderer` (React UI), `src/shared` (types/constants), `assets/` (icons).
+- TypeScript everywhere. Strict mode on.
+- Bundler: Vite for renderer & preload; esbuild/tsup acceptable for preload; Electron entry compiled with ts-node in dev.
+- State: lightweight first (React Query/Zustand/Context); avoid Redux unless necessary.
+- Styling: Tailwind CSS with PostCSS & autoprefixer; no CSS frameworks beyond Tailwind. Use semantic class composition, avoid class bloat.
+- IPC: Define a typed channel map in `src/shared/ipc.ts`. Use `contextBridge.exposeInMainWorld` to surface a narrow API.
+- Logging: `electron-log` (main) and console + optional Sentry in renderer. Guard PII.
+- Config: `.editorconfig`, `.prettierrc`, `eslint` with `@typescript-eslint` and React hooks rules, `tailwind.config.ts` with content globs.
+- Packaging: `electron-builder` (default) with proper appId, icons, code signing hooks, auto-update (electron-updater) optional.
+
+### Security Requirements (must-do)
+- `BrowserWindow` defaults: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `enableRemoteModule: false`.
+- Preload only exposes minimal, typed functions. Validate all inputs.
+- Disallow `shell.openExternal` without explicit allowlist; sanitize URLs.
+- Content Security Policy (CSP) for renderer; avoid `eval`/unsafe-inline.
+- File system/network access only in main process; never from renderer.
+
+### Coding Style
+- Prefer functional React components with hooks. No legacy classes.
+- Keep components small; extract UI primitives (Buttons, Modals) as reusable components with Tailwind.
+- Use Tailwind utility classes; create `@apply` only for repeated patterns.
+- Strong typing: define `Env`, `IpcChannels`, DTOs. No `any`.
+- Error handling: graceful fallbacks, user-friendly messages, never crash the app silently.
+
+### Testing & QA
+- Unit: Vitest for shared & renderer logic.
+- E2E: Playwright or Spectron alternative (e.g., Playwright + electron) for smoke flows.
+- Lint + typecheck in CI; block merges on errors.
+
+### Scaffolds (generate when asked)
+1) **Main Process (TypeScript)**
+   - `createMainWindow()` with secure `BrowserWindow` options.
+   - `app.whenReady()` lifecycle; OS-specific behavior (dock, single instance).
+   - IPC handlers using `ipcMain.handle` with runtime validation (zod acceptable).
+
+2) **Preload (TypeScript)**
+   - `contextBridge.exposeInMainWorld('api', { ... })` with typed methods that proxy to `ipcRenderer.invoke`.
+
+3) **Renderer (React + Vite + Tailwind)**
+   - `index.tsx` bootstrapping React, strict mode, error boundary, Tailwind import.
+   - Example pages/components and a small design system using Tailwind.
+
+4) **Configs**
+   - `tailwind.config.ts` with proper `content` globs (`src/renderer/**/*.{ts,tsx,html}`),
+   - `postcss.config.cjs` with `tailwindcss` and `autoprefixer`.
+   - `electron-builder.yml` with platforms/targets, artifact naming, files include map, asar enabled.
+
+### Performance
+- Lazy-load heavy renderer routes/components.
+- Avoid blocking main thread; offload CPU-heavy work to worker threads or background processes.
+- Keep bundle sizes small; tree-shake icons/libs; prefer dynamic import.
+
+### Dev UX
+- `pnpm` preferred (ok: npm/yarn).
+- Scripts: `dev` (concurrently run electron + vite), `build:renderer`, `build:preload`, `build:main`, `build`, `lint`, `typecheck`, `test`, `pack`, `dist`.
+
+### Documentation
+- Add a concise README: run, build, package, release steps; signing notes; environment variables; update flow.
+
+### When Responding in this Repo
+- Propose minimal, secure defaults first. Explain trade-offs tersely.
+- Include exact file paths and complete code blocks that compile.
+- Keep answers focused and senior-level: no overly verbose tutorials.
+
+### Example Secure BrowserWindow (reference when asked to scaffold)
+```ts
+const win = new BrowserWindow({
+  width: 1024,
+  height: 768,
+  show: false,
+  webPreferences: {
+    preload: path.join(__dirname, 'preload.js'),
+    sandbox: true,
+    contextIsolation: true,
+    nodeIntegration: false,
+    enableRemoteModule: false,
+  }
+});
+win.once('ready-to-show', () => win.show());
+```
+
+### Example Preload (typed IPC surface)
+```ts
+import { contextBridge, ipcRenderer } from 'electron';
+type Api = {
+  getVersion(): Promise<string>;
+  openExternal(url: string): Promise<boolean>;
+};
+const api: Api = {
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+};
+contextBridge.exposeInMainWorld('api', api);
+declare global { interface Window { api: Api } }
+```
+
+### Example Tailwind Setup Notes
+- `content`: ["./index.html", "./src/renderer/**/*.{ts,tsx,html}"]
+- Import `./src/renderer/styles/tailwind.css` in renderer root with `@tailwind base; @tailwind components; @tailwind utilities;`
+
+### Packaging
+- Enable `asar: true`. Exclude dev files. Provide platform icons.
+- Wire auto-updates only after basic release flow is stable.
+
+Always default to the most secure, typed, and maintainable implementation for Electron + React + Tailwind.

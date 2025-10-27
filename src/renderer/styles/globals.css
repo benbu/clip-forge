@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+* {
+  outline-color: rgb(99 102 241 / 0.8);
+}
+
