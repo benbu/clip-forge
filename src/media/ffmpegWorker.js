@@ -365,34 +365,82 @@ async function composeClipWithOverlay(instance, context) {
 }
 
 async function prepareClip(instance, clip, index) {
+  const cleanup = new Set();
   const baseInputName = `clip_base_${index}.dat`;
   await writeInputFile(instance, baseInputName, clip.source ?? clip.path);
+  cleanup.add(baseInputName);
+
+  const trimStart = Math.max(0, Number(clip.sourceIn ?? 0));
+  const inferredDuration =
+    clip.sourceOut != null
+      ? Math.max(0, Number(clip.sourceOut) - trimStart)
+      : Math.max(0, Number(clip.duration ?? 0));
+  let workingBaseName = baseInputName;
+
+  if (trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut))) {
+    const trimmedName = `clip_trim_${index}.mp4`;
+    const args = ['-i', workingBaseName];
+    if (trimStart > 0) {
+      args.push('-ss', trimStart.toFixed(3));
+    }
+    if (inferredDuration > 0) {
+      args.push('-t', inferredDuration.toFixed(3));
+    }
+    args.push('-c', 'copy', trimmedName);
+    await runCommand(instance, args);
+    cleanup.add(trimmedName);
+    workingBaseName = trimmedName;
+  }
 
   const hasOverlaySource = Boolean(clip.overlaySource);
 
   if (!hasOverlaySource) {
     const preparedName = `prepared_clip_${index}.mp4`;
-    await transcodeClip(instance, baseInputName, preparedName);
-    await safeDelete(instance, baseInputName);
+    await transcodeClip(instance, workingBaseName, preparedName);
+    for (const name of cleanup) {
+      await safeDelete(instance, name);
+    }
     return preparedName;
   }
 
   const cameraInputName = `clip_camera_${index}.dat`;
   await writeInputFile(instance, cameraInputName, clip.overlaySource);
+  cleanup.add(cameraInputName);
+
+  let workingCameraName = cameraInputName;
+  if (trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut))) {
+    const trimmedCamera = `clip_camera_trim_${index}.mp4`;
+    const args = ['-i', cameraInputName];
+    if (trimStart > 0) {
+      args.push('-ss', trimStart.toFixed(3));
+    }
+    if (inferredDuration > 0) {
+      args.push('-t', inferredDuration.toFixed(3));
+    }
+    args.push('-c', 'copy', trimmedCamera);
+    await runCommand(instance, args);
+    cleanup.add(trimmedCamera);
+    workingCameraName = trimmedCamera;
+  }
 
   try {
     const prepared = await composeClipWithOverlay(instance, {
-      clip,
+      clip: {
+        ...clip,
+        duration: inferredDuration || clip.duration,
+      },
       index,
-      baseInputName,
-      cameraInputName,
+      baseInputName: workingBaseName,
+      cameraInputName: workingCameraName,
     });
-    await safeDelete(instance, baseInputName);
-    await safeDelete(instance, cameraInputName);
+    for (const name of cleanup) {
+      await safeDelete(instance, name);
+    }
     return prepared;
   } catch (error) {
-    await safeDelete(instance, cameraInputName);
-    await safeDelete(instance, baseInputName);
+    for (const name of cleanup) {
+      await safeDelete(instance, name);
+    }
     throw error;
   }
 }
@@ -494,7 +542,7 @@ export async function exportVideo(source, outputName = 'exported.mp4', options =
       command.push('-b:v', options.bitrate);
     }
 
-    command.push('-c:v', options.codec || 'libx264', '-c:a', 'aac', '-preset', 'fast');
+    command.push('-c:v', options.codec || 'libx264', '-c:a', 'aac', '-preset', options.preset || 'veryfast');
 
     if (options.crf) {
       command.push('-crf', `${options.crf}`);

@@ -41,6 +41,14 @@ export const useTimelineStore = create((set) => ({
       normalizedClip.endTrim = normalizedClip.duration;
     }
 
+    const sourceDuration =
+      normalizedClip.sourceOut != null && normalizedClip.sourceIn != null
+        ? normalizedClip.sourceOut - normalizedClip.sourceIn
+        : normalizedClip.duration ?? 0;
+
+    normalizedClip.sourceIn = normalizedClip.sourceIn ?? 0;
+    normalizedClip.sourceOut = normalizedClip.sourceOut ?? (normalizedClip.sourceIn + sourceDuration);
+
     return {
       clips: [...state.clips, normalizedClip],
       selectedClipId: normalizedClip.id,
@@ -81,16 +89,26 @@ export const useTimelineStore = create((set) => ({
   // Trim clip
   trimClip: (clipId, start, end) =>
     set((state) => ({
-      clips: state.clips.map((clip) =>
-        clip.id === clipId
-          ? {
-              ...clip,
-              start,
-              end,
-              duration: Math.max(0, end - start),
-            }
-          : clip
-      ),
+      clips: state.clips.map((clip) => {
+        if (clip.id !== clipId) return clip;
+
+        const prevSourceIn = clip.sourceIn ?? 0;
+        const prevStart = clip.start ?? 0;
+        const prevEnd = clip.end ?? prevStart;
+        const deltaLeft = start - prevStart;
+        const duration = Math.max(0, end - start);
+        const newSourceIn = Math.max(0, prevSourceIn + deltaLeft);
+        const newSourceOut = newSourceIn + duration;
+
+        return {
+          ...clip,
+          start,
+          end,
+          duration,
+          sourceIn: newSourceIn,
+          sourceOut: newSourceOut,
+        };
+      }),
     })),
 
   // Split clip at current playhead
@@ -102,8 +120,25 @@ export const useTimelineStore = create((set) => ({
     for (const clip of state.clips) {
       if (clip.id === clipId && clip.start <= playhead && playhead <= clip.end) {
         const rightClipId = `${clip.id}-split-${Date.now()}`;
-        const leftClip = { ...clip, end: playhead };
-        const rightClip = { ...clip, id: rightClipId, start: playhead };
+        const totalDuration = clip.duration ?? (clip.end - clip.start);
+        const offset = Math.max(0, playhead - clip.start);
+        const leftDuration = Math.max(0, offset);
+        const rightDuration = Math.max(0, totalDuration - leftDuration);
+        const sourceIn = clip.sourceIn ?? 0;
+        const leftClip = {
+          ...clip,
+          end: playhead,
+          duration: leftDuration,
+          sourceOut: sourceIn + leftDuration,
+        };
+        const rightClip = {
+          ...clip,
+          id: rightClipId,
+          start: playhead,
+          duration: rightDuration,
+          sourceIn: sourceIn + leftDuration,
+          sourceOut: sourceIn + leftDuration + rightDuration,
+        };
         nextClips.push(leftClip, rightClip);
         selectedClipId = rightClipId;
       } else {

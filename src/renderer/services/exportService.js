@@ -11,6 +11,32 @@ export class ExportService {
     this.isExporting = false;
     this.currentProgress = 0;
     this.onProgressCallback = null;
+    this.currentStage = null;
+
+    if (typeof window !== 'undefined') {
+      this._ffmpegProgressListener = (event) => {
+        const value = event?.detail?.progress ?? 0;
+        this.handleFFmpegProgress(value);
+      };
+      window.addEventListener('ffmpeg-progress', this._ffmpegProgressListener);
+    }
+  }
+
+  handleFFmpegProgress(progressValue) {
+    if (!this.isExporting || this.currentStage == null) {
+      return;
+    }
+
+    const clamped = Math.max(0, Math.min(1, progressValue));
+    let mapped = this.currentProgress;
+
+    if (this.currentStage === 'merge') {
+      mapped = 10 + clamped * 40; // 10% -> 50%
+    } else if (this.currentStage === 'encode') {
+      mapped = 50 + clamped * 40; // 50% -> 90%
+    }
+
+    this.updateProgress(Math.floor(mapped));
   }
   
   /**
@@ -77,6 +103,11 @@ export class ExportService {
             mediaFile.durationSeconds ??
             Math.max(0, (clip.end ?? 0) - (clip.start ?? 0));
 
+          const sourceIn = clip.sourceIn ?? 0;
+          const sourceOut =
+            clip.sourceOut ??
+            (clip.sourceIn != null ? clip.sourceIn + duration : duration);
+
           return {
             id: clip.id,
             source: baseSource,
@@ -92,6 +123,8 @@ export class ExportService {
             cameraResolution: recordingMeta.cameraResolution || null,
             previewSource: mediaFile.path,
             duration,
+            sourceIn,
+            sourceOut,
             name: mediaFile.name,
             sourceType: mediaFile.sourceType,
             recordingMeta,
@@ -105,11 +138,14 @@ export class ExportService {
       
       // Update progress
       this.updateProgress(10);
+
+      this.currentStage = 'merge';
       
       // Merge all clips
       const mergedData = await mergeClips(clipData);
       
       this.updateProgress(50);
+      this.currentStage = 'encode';
       
       // Normalize to Uint8Array
       const mergedBuffer =
@@ -135,6 +171,7 @@ export class ExportService {
       await this.saveExport(filePath, exportedBuffer);
       
       this.updateProgress(100);
+      this.currentStage = null;
       
       return {
         filePath,
@@ -146,6 +183,7 @@ export class ExportService {
       throw error;
     } finally {
       this.isExporting = false;
+      this.currentStage = null;
     }
   }
   
@@ -223,22 +261,26 @@ export class ExportService {
       '720p': {
         resolution: '1280x720',
         bitrate: '5000k',
-        crf: 23
+        crf: 23,
+        preset: 'veryfast',
       },
       '1080p': {
         resolution: '1920x1080',
         bitrate: '8000k',
-        crf: 23
+        crf: 23,
+        preset: 'veryfast',
       },
       '4k': {
         resolution: '3840x2160',
         bitrate: '25000k',
-        crf: 23
+        crf: 23,
+        preset: 'faster',
       },
       'source': {
         resolution: null,
         bitrate: null,
-        crf: 23
+        crf: 23,
+        preset: 'veryfast',
       }
     };
     

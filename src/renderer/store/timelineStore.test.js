@@ -36,6 +36,8 @@ describe('timelineStore', () => {
     expect(stored.duration).toBe(5);
     expect(stored.end).toBe(7);
     expect(stored.endTrim).toBe(5);
+    expect(stored.sourceIn).toBe(0);
+    expect(stored.sourceOut).toBe(5);
   });
 
   it('removes clips and clears selection when target is deleted', () => {
@@ -62,7 +64,11 @@ describe('timelineStore', () => {
 
     const [left, right] = clips;
     expect(left.end).toBe(4);
+    expect(left.sourceIn).toBe(0);
+    expect(left.sourceOut).toBe(4);
     expect(right.start).toBe(4);
+    expect(right.sourceIn).toBe(4);
+    expect(right.sourceOut).toBe(10);
     expect(selectedClipId).toBe(right.id);
   });
 
@@ -77,5 +83,7 @@ describe('timelineStore', () => {
     expect(updated?.start).toBe(1);
     expect(updated?.end).toBe(5);
     expect(updated?.duration).toBe(4);
+    expect(updated?.sourceIn).toBe(1);
+    expect(updated?.sourceOut).toBe(5);
   });
 });
