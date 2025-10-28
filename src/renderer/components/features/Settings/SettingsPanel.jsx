@@ -17,7 +17,7 @@ const SETTINGS_CATEGORIES = [
 ];
 
 export function SettingsPanel() {
-  const [activeCategory, setActiveCategory] = useState('appearance');
+  const [activeCategory, setActiveCategory] = useState('export');
 
   const renderSettingsContent = () => {
     switch (activeCategory) {
@@ -32,7 +32,7 @@ export function SettingsPanel() {
       case 'advanced':
         return <AdvancedSettings />;
       default:
-        return <AppearanceSettings />;
+        return <ExportSettings />;
     }
   };
 
