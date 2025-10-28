@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Video, Pause, Play, Square, Dot, Mic, MicOff, Webcam } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useRecordingStore } from '@/store/recordingStore';
@@ -7,6 +7,7 @@ import { recordingService } from '@/services/recordingService';
 import { importVideoFiles } from '@/services/mediaService';
 import { formatDuration } from '@/lib/fileUtils';
 import { RecordingSetupModal, OVERLAY_POSITIONS } from './RecordingSetupModal';
+import { RecordingOverlayEditor } from './RecordingOverlayEditor';
 
 const COUNTDOWN_SECONDS = 3;
 
@@ -28,6 +29,9 @@ const formatElapsed = (seconds) => {
 export function RecordingControls({ pushToast }) {
   const addFiles = useMediaStore((state) => state.addFiles);
   const [isStarting, setIsStarting] = useState(false);
+  const [isOverlayEditorOpen, setOverlayEditorOpen] = useState(false);
+  const [overlayEditorAnchorRect, setOverlayEditorAnchorRect] = useState(null);
+  const overlayButtonRef = useRef(null);
 
   const status = useRecordingStore((state) => state.status);
   const openSetupModal = useRecordingStore((state) => state.openSetupModal);
@@ -71,6 +75,41 @@ export function RecordingControls({ pushToast }) {
     if (status !== 'recording' && status !== 'paused') return;
     recordingService.updateOverlay(overlay);
   }, [overlay, status]);
+
+  useEffect(() => {
+    if (!isOverlayEditorOpen) return;
+    const updateRect = () => {
+      const el = overlayButtonRef.current;
+      if (el) {
+        setOverlayEditorAnchorRect(el.getBoundingClientRect());
+      }
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true);
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
+  }, [isOverlayEditorOpen]);
+
+  useEffect(() => {
+    if (status === 'idle' && isOverlayEditorOpen) {
+      setOverlayEditorOpen(false);
+    }
+  }, [isOverlayEditorOpen, status]);
+
+  useEffect(() => {
+    if (!cameraEnabled && isOverlayEditorOpen) {
+      setOverlayEditorOpen(false);
+    }
+  }, [cameraEnabled, isOverlayEditorOpen]);
+
+  useEffect(() => {
+    if (!isOverlayEditorOpen) {
+      setOverlayEditorAnchorRect(null);
+    }
+  }, [isOverlayEditorOpen]);
 
   useEffect(() => {
     const api = window.electronAPI;
@@ -278,11 +317,35 @@ export function RecordingControls({ pushToast }) {
 
   const audioMeterWidth = useMemo(() => Math.round((meterLevel || 0) * 100), [meterLevel]);
   const overlayPositionLabel = useMemo(() => {
+    if (overlay?.position === 'custom') {
+      return 'Custom';
+    }
     return (
       OVERLAY_POSITIONS.find((position) => position.id === overlay?.position)?.label ||
       'Top Right'
     );
   }, [overlay]);
+
+  const toggleOverlayEditor = useCallback(
+    (event) => {
+      if (event?.altKey) {
+        cycleOverlayPosition();
+        return;
+      }
+      const next = !isOverlayEditorOpen;
+      if (!next) {
+        setOverlayEditorOpen(false);
+        setOverlayEditorAnchorRect(null);
+        return;
+      }
+      setOverlayEditorOpen(true);
+      const el = overlayButtonRef.current;
+      if (el) {
+        setOverlayEditorAnchorRect(el.getBoundingClientRect());
+      }
+    },
+    [cycleOverlayPosition, isOverlayEditorOpen]
+  );
 
   return (
     <>
@@ -324,16 +387,18 @@ export function RecordingControls({ pushToast }) {
               </div>
             )}
 
-            {cameraEnabled && status !== 'countdown' && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={cycleOverlayPosition}
-                tooltip="Cycle overlay position"
-                icon={<Webcam className="h-4 w-4" />}
-              >
-                PiP: {overlayPositionLabel}
-              </Button>
+            {status !== 'countdown' && (
+              <div ref={overlayButtonRef} className="ml-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={toggleOverlayEditor}
+                  tooltip={cameraEnabled ? 'Adjust PiP overlay (Alt-click to cycle presets)' : 'Enable the webcam overlay to adjust layout'}
+                  icon={<Webcam className="h-4 w-4" />}
+                >
+                  PiP: {overlayPositionLabel}
+                </Button>
+              </div>
             )}
 
             {status === 'paused' ? (
@@ -371,6 +436,12 @@ export function RecordingControls({ pushToast }) {
       </div>
 
       <RecordingSetupModal onStartRecording={handleArmRecording} busy={busy} />
+      {isOverlayEditorOpen && overlayEditorAnchorRect && (
+        <RecordingOverlayEditor
+          anchorRect={overlayEditorAnchorRect}
+          onClose={() => setOverlayEditorOpen(false)}
+        />
+      )}
     </>
   );
 }

@@ -3,6 +3,16 @@ import { create } from 'zustand';
 const OVERLAY_PREF_KEY = 'clipforge:recordingOverlay';
 const OVERLAY_POSITIONS = ['top-right', 'bottom-right', 'bottom-left', 'top-left', 'center'];
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const sanitizeCoordinates = (coords) => {
+  if (!coords || typeof coords !== 'object') return null;
+  const xPercent = Number.isFinite(coords.xPercent) ? clamp(coords.xPercent, 0, 1) : null;
+  const yPercent = Number.isFinite(coords.yPercent) ? clamp(coords.yPercent, 0, 1) : null;
+  if (xPercent === null || yPercent === null) return null;
+  return { xPercent, yPercent };
+};
+
 const loadOverlayPrefs = () => {
   if (typeof window === 'undefined') return null;
   try {
@@ -12,9 +22,11 @@ const loadOverlayPrefs = () => {
     if (
       typeof parsed === 'object' &&
       parsed !== null &&
-      ['top-right', 'top-left', 'bottom-right', 'bottom-left', 'center'].includes(parsed.position) &&
+      ['top-right', 'top-left', 'bottom-right', 'bottom-left', 'center', 'custom'].includes(parsed.position) &&
       typeof parsed.size === 'number'
     ) {
+      const coordinates = sanitizeCoordinates(parsed.coordinates);
+      parsed.coordinates = coordinates;
       return parsed;
     }
   } catch (error) {
@@ -26,7 +38,13 @@ const loadOverlayPrefs = () => {
 const persistOverlayPrefs = (overlay) => {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(OVERLAY_PREF_KEY, JSON.stringify(overlay));
+    const payload = {
+      position: overlay.position,
+      size: overlay.size,
+      borderRadius: overlay.borderRadius,
+      coordinates: sanitizeCoordinates(overlay.coordinates),
+    };
+    window.localStorage.setItem(OVERLAY_PREF_KEY, JSON.stringify(payload));
   } catch (error) {
     console.warn('Failed to persist overlay prefs', error);
   }
@@ -36,6 +54,7 @@ const defaultOverlay = loadOverlayPrefs() || {
   position: 'top-right',
   size: 0.22,
   borderRadius: 12,
+  coordinates: null,
 };
 
 export const useRecordingStore = create((set, get) => ({
@@ -112,32 +131,66 @@ export const useRecordingStore = create((set, get) => ({
   selectCamera: (deviceId) => set({ selectedCameraId: deviceId }),
 
   setOverlayPosition: (position) => {
-    const overlay = { ...get().overlay, position };
+    const prev = get().overlay;
+    const overlay = {
+      ...prev,
+      position,
+      coordinates:
+        position === 'custom'
+          ? sanitizeCoordinates(prev.coordinates) || { xPercent: 0.5, yPercent: 0.5 }
+          : null,
+    };
     persistOverlayPrefs(overlay);
     set({ overlay });
     get().recordOverlayChange(overlay);
   },
 
   setOverlaySize: (size) => {
-    const overlay = { ...get().overlay, size };
+    const prev = get().overlay;
+    const overlay = {
+      ...prev,
+      size: clamp(Number(size) || prev.size || 0.22, 0.1, 0.6),
+      coordinates:
+        prev.position === 'custom'
+          ? sanitizeCoordinates(prev.coordinates) || { xPercent: 0.5, yPercent: 0.5 }
+          : null,
+    };
     persistOverlayPrefs(overlay);
     set({ overlay });
     get().recordOverlayChange(overlay);
   },
 
   setOverlayBorderRadius: (borderRadius) => {
-    const overlay = { ...get().overlay, borderRadius };
+    const prev = get().overlay;
+    const overlay = {
+      ...prev,
+      borderRadius: clamp(Number(borderRadius) || prev.borderRadius || 12, 0, 64),
+    };
     persistOverlayPrefs(overlay);
     set({ overlay });
     get().recordOverlayChange(overlay);
   },
 
   cycleOverlayPosition: () => {
-    const currentPosition = get().overlay.position || 'top-right';
+    const overlay = get().overlay;
+    const currentPosition = overlay.position === 'custom' ? 'top-right' : overlay.position || 'top-right';
     const currentIndex = OVERLAY_POSITIONS.indexOf(currentPosition);
     const nextPosition =
       OVERLAY_POSITIONS[(currentIndex + 1) % OVERLAY_POSITIONS.length] || 'top-right';
     get().setOverlayPosition(nextPosition);
+  },
+
+  setOverlayCoordinates: ({ xPercent, yPercent }) => {
+    const overlay = get().overlay;
+    const coordinates = sanitizeCoordinates({ xPercent, yPercent });
+    const nextOverlay = {
+      ...overlay,
+      position: 'custom',
+      coordinates,
+    };
+    persistOverlayPrefs(nextOverlay);
+    set({ overlay: nextOverlay });
+    get().recordOverlayChange(nextOverlay);
   },
 
   setAvailableAudioInputs: (devices) => {
@@ -222,8 +275,10 @@ export const useRecordingStore = create((set, get) => ({
       const overlayChanged =
         !last ||
         last.overlay.position !== overlay.position ||
-        Math.abs((last.overlay.size ?? 0) - (overlay.size ?? 0)) > 0.001 ||
-        (last.overlay.borderRadius ?? 0) !== (overlay.borderRadius ?? 0);
+          Math.abs((last.overlay.size ?? 0) - (overlay.size ?? 0)) > 0.001 ||
+        (last.overlay.borderRadius ?? 0) !== (overlay.borderRadius ?? 0) ||
+        ((last.overlay.coordinates?.xPercent ?? null) !== (overlay.coordinates?.xPercent ?? null)) ||
+        ((last.overlay.coordinates?.yPercent ?? null) !== (overlay.coordinates?.yPercent ?? null));
 
       const nextKeyframe = { timestamp, overlay };
 

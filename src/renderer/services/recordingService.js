@@ -4,12 +4,48 @@
 
 import { Buffer } from 'buffer';
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const sanitizeCoordinates = (coords) => {
+  if (!coords || typeof coords !== 'object') return null;
+  const xPercent = Number.isFinite(coords.xPercent) ? clamp(coords.xPercent, 0, 1) : null;
+  const yPercent = Number.isFinite(coords.yPercent) ? clamp(coords.yPercent, 0, 1) : null;
+  if (xPercent === null || yPercent === null) return null;
+  return { xPercent, yPercent };
+};
+
+const sanitizeOverlay = (overlay = {}, defaults = DEFAULT_OVERLAY) => {
+  const positionRaw = typeof overlay.position === 'string' ? overlay.position : defaults.position;
+  const position = positionRaw === 'custom' || OVERLAY_POSITIONS.includes(positionRaw)
+    ? positionRaw
+    : defaults.position;
+
+  const sizeRaw = Number.isFinite(overlay.size) ? overlay.size : defaults.size;
+  const size = clamp(sizeRaw, 0.1, 0.6);
+
+  const borderRadiusRaw = Number.isFinite(overlay.borderRadius) ? overlay.borderRadius : defaults.borderRadius;
+  const borderRadius = clamp(borderRadiusRaw, 0, 64);
+
+  const coordinates = position === 'custom'
+    ? sanitizeCoordinates(overlay.coordinates) || { xPercent: 0.5, yPercent: 0.5 }
+    : null;
+
+  return {
+    position,
+    size,
+    borderRadius,
+    coordinates,
+  };
+};
+
 const VIDEO_MIME = 'video/webm;codecs=vp9,opus';
 const DEFAULT_VIDEO_BITRATE = 3000000; // 3 Mbps
+const OVERLAY_POSITIONS = ['top-right', 'bottom-right', 'bottom-left', 'top-left', 'center', 'custom'];
 const DEFAULT_OVERLAY = {
   position: 'top-right',
   size: 0.22,
   borderRadius: 12,
+  coordinates: null,
 };
 const OVERLAY_MARGIN = 24;
 
@@ -403,9 +439,10 @@ export class RecordingService {
         }
       }
 
-      this.overlayState = {
-        ...(overlay || DEFAULT_OVERLAY),
-      };
+      this.overlayState = sanitizeOverlay({
+        ...DEFAULT_OVERLAY,
+        ...(overlay || {}),
+      });
 
       const baseStream = this.createBaseStream(this.screenStream, this.audioStream);
       this.outputStream = baseStream;
@@ -532,7 +569,7 @@ export class RecordingService {
 
     const screenDimensions = this.screenDimensions ? { ...this.screenDimensions } : null;
     const cameraDimensions = this.cameraDimensions ? { ...this.cameraDimensions } : null;
-    const overlayDefaults = { ...this.overlayState };
+    const overlayDefaults = sanitizeOverlay(this.overlayState);
 
     let baseResult = null;
     let previewResult = null;
@@ -555,7 +592,7 @@ export class RecordingService {
       camera: cameraResult,
       screenDimensions,
       cameraDimensions,
-      overlayDefaults,
+      overlayDefaults: sanitizeOverlay(overlayDefaults),
       overlayMargin: OVERLAY_MARGIN,
     };
   }
@@ -676,10 +713,8 @@ export class RecordingService {
   }
 
   updateOverlay(updates = {}) {
-    this.overlayState = {
-      ...this.overlayState,
-      ...updates,
-    };
+    const current = this.overlayState || DEFAULT_OVERLAY;
+    this.overlayState = sanitizeOverlay({ ...current, ...updates }, current);
     if (this.previewRecorder && this.previewRecorder.state !== 'inactive') {
       // The composite stream references overlayState by reference,
       // so updates will reflect automatically on the next frame.
