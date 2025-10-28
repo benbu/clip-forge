@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function FileCard({ file, isSelected, onSelect, onDelete }) {
+export function FileCard({ file, isSelected, onSelect, onDelete, onRelink, bulkSelected, onBulkToggle }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
@@ -37,6 +37,18 @@ export function FileCard({ file, isSelected, onSelect, onDelete }) {
     >
       {/* Thumbnail */}
       <div className="relative aspect-video bg-gradient-to-br from-indigo-600/20 to-purple-600/20">
+        {/* Bulk checkbox */}
+        <div className="absolute top-2 left-2 z-10">
+          <input
+            type="checkbox"
+            checked={Boolean(bulkSelected)}
+            onChange={(e) => {
+              e.stopPropagation();
+              onBulkToggle && onBulkToggle();
+            }}
+            className="h-3.5 w-3.5 accent-indigo-500"
+          />
+        </div>
         {file.thumbnail ? (
           <img 
             src={file.thumbnail} 
@@ -53,6 +65,13 @@ export function FileCard({ file, isSelected, onSelect, onDelete }) {
         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-xs text-white">
           {file.duration}
         </div>
+
+        {/* Missing badge */}
+        {file.missing && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600 text-xs text-white">
+            Missing
+          </div>
+        )}
       </div>
       
       {/* File Info */}
@@ -68,7 +87,7 @@ export function FileCard({ file, isSelected, onSelect, onDelete }) {
         </div>
       </div>
       
-      {/* Delete Button */}
+      {/* Delete / Relink Buttons */}
       {isHovered && (
         <button
           className="absolute top-2 right-2 p-1.5 rounded-md bg-red-600 hover:bg-red-500 text-white transition-opacity opacity-0 group-hover:opacity-100"
@@ -79,6 +98,20 @@ export function FileCard({ file, isSelected, onSelect, onDelete }) {
         >
           <Trash2 className="h-4 w-4" />
         </button>
+      )}
+
+      {file.missing && (
+        <div className="absolute bottom-2 left-2">
+          <button
+            className="px-2 py-0.5 rounded text-xs bg-yellow-600 hover:bg-yellow-500 text-white"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRelink && onRelink();
+            }}
+          >
+            Relink
+          </button>
+        </div>
       )}
     </div>
   );

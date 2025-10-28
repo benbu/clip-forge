@@ -34,7 +34,8 @@ export async function importVideoFiles(files, options = {}) {
         resolution: `${metadata.width}x${metadata.height}`,
         thumbnail: thumbnail, // Store thumbnail data URL
         originalFile: file, // Keep reference to File object for blob URL creation
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(), // import date
+        sourceType: 'external', // default for manual imports; recordings can override to 'recording'
       };
 
       if (typeof enrichFile === 'function') {

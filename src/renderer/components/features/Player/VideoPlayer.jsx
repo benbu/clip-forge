@@ -147,9 +147,11 @@ export function VideoPlayer() {
         rafRef.current = requestAnimationFrame(() => {
           seek(current);
           if (playbackSource === 'timeline') {
-            setPlayheadPosition(current);
-            // Stop playback at end of timeline clips
-            if (clips && clips.length > 0) {
+            if (isPlaying && !isScrubbing) {
+              setPlayheadPosition(current);
+            }
+            // Stop playback at end of timeline clips (only relevant when playing)
+            if (isPlaying && clips && clips.length > 0) {
               const timelineEnd = Math.max(
                 ...clips.map((clip) =>
                   (clip.end != null)

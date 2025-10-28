@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseExportPath: (suggestedName) => ipcRenderer.invoke('chooseExportPath', suggestedName),
   prepareRecordingPath: (options) => ipcRenderer.invoke('prepareRecordingPath', options),
   updateRecordingStatus: (payload) => ipcRenderer.invoke('updateRecordingStatus', payload),
+  fileExists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
+  openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo'),
   onTrayRecordingCommand: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, command) => {

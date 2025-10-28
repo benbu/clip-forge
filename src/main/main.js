@@ -342,6 +342,34 @@ ipcMain.handle('chooseExportPath', async (event, suggestedName) => {
   }
 });
 
+ipcMain.handle('fs:exists', async (_event, filePath) => {
+  try {
+    if (!filePath || typeof filePath !== 'string') return { exists: false };
+    const stat = await fs.stat(filePath);
+    return { exists: true, size: Number(stat.size) || 0, mtimeMs: Number(stat.mtimeMs) || 0 };
+  } catch (_) {
+    return { exists: false };
+  }
+});
+
+ipcMain.handle('dialog:openVideo', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: 'Relink Media',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Video Files', extensions: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  } catch (error) {
+    console.error('Error opening file dialog:', error);
+    return null;
+  }
+});
+
 const sanitizeFileName = (value) =>
   value.replace(/[<>:"/\\|?*\x00-\x1F]/g, '').replace(/\s+/g, ' ').trim();
 

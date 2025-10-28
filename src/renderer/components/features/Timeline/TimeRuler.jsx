@@ -41,8 +41,19 @@ export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration 
   
   const handleClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    // Ignore clicks within the track label gutter to avoid jumping to 0s
+    if (localX <= trackLabelWidth) {
+      return;
+    }
+
     const timelineWidth = rect.width - trackLabelWidth;
-    const clickX = e.clientX - rect.left - trackLabelWidth;
+    const clickX = localX - trackLabelWidth;
+    // Ignore clicks beyond the right edge
+    if (clickX < 0 || clickX > timelineWidth) {
+      return;
+    }
+
     const time = (clickX / timelineWidth) * duration;
     const clampedTime = Math.max(0, Math.min(duration, time));
     setPlayheadPosition(clampedTime);
