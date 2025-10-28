@@ -21,6 +21,14 @@ Desktop video editor built with Electron, React, and Tailwind CSS.
 - Timeline editor with drag/trim/split functionality
 - Beautiful dark theme with smooth animations
 
+### Media Library & Asset Management (Epic 2)
+- Sortable columns: name, import date, duration, size, resolution
+- Quick filters: All, Recordings, External
+- Clip Detail Drawer: metadata, rename, usage by track
+- Async thumbnail cache with background generation
+- Missing-media detection with Relink flow (secure IPC)
+- Bulk actions: multi-select, delete, add to timeline
+
 ✅ **Ready to build and distribute!** Package the app with `npm run build`
 
 ## Development

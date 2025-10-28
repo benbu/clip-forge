@@ -2,59 +2,38 @@
 
 ## Current Focus
 
-**Phase**: Project Initialization & Foundation Setup
-**Status**: Early Setup - Basic Electron scaffold complete, awaiting full architecture implementation
+**Phase**: Post-MVP Feature Completion — Media Library & Asset Management
+**Status**: Epic 2 delivered (sortable/filters, detail drawer, thumbnails, missing-media, bulk actions)
 
-The project is at the very beginning stages with only a basic Electron "Hello World" setup. The next critical steps involve:
-1. Establishing the full project structure
-2. Setting up React and Tailwind CSS
-3. Creating the secure IPC architecture
-4. Beginning UI component development
+Focus for next work session:
+1. Timeline & Editing upgrades (multi-tracks, overlays, waveforms, ripple edits)
+2. Recording enhancements (source picker, PiP controls, audio routing)
+3. Export polish (queue, presets, progress/ETA)
 
 ## Recent Changes
 
 ### Completed
-- Created basic Electron application with `src/main/main.js`
-- Set up package.json with Electron dependency
-- Created comprehensive documentation (PRD and Task List)
-- Established `.cursor/rules/` directory with development guidelines
+- Media Library sortable columns and quick filters
+- Clip Detail Drawer with metadata, rename, and usage by track
+- Async thumbnail caching + background generation
+- Missing-media detection + Relink workflow (secure IPC)
+- Bulk actions: multi-select, batch delete, add to timeline
 
 ### Git Status
-- Modified: `docs/clipforge_mvp_tasklist.md`
-- Modified: `src/main/main.js`
-- Untracked: `.cursor/` directory with project rules
+- Modified: `docs/clipforge_remaining_features_tasklist.md`
+- Modified: `README.md`, `PROGRESS.md`
+- Modified: `src/main/main.js`, `src/preload/bridge.js`
+- Modified: `src/renderer/components/features/MediaLibrary/*`
+- Modified: `src/renderer/services/*`, `src/renderer/store/mediaStore.js`
 
 ## Current Work Session
 
 ### Today's Priority
-Initializing the Memory Bank and documenting the project's architecture and current state for future reference.
+Document Epic 2 delivery and prepare tasks for Timeline & Editing upgrades.
 
 ### Active Decisions
-
-#### 1. Build Tool Selection
-**Decision Needed**: Choose primary bundler for renderer process
-- **Options**: Vite, esbuild, webpack
-- **Consideration**: Vite offers excellent HMR and React integration
-- **Recommendation**: Vite for development speed and modern tooling
-
-#### 2. State Management Choice
-**Decision**: Use Zustand
-- **Rationale**: Simple API, minimal boilerplate, fits project scope
-- **Alternative Considered**: Redux (too heavy for this MVP)
-
-#### 3. TypeScript Integration
-**Decision Pending**: When to introduce TypeScript
-- **Options**: From start vs. gradual migration
-- **Recommendation**: Start with TypeScript from beginning for better DX
-- **Trade-off**: Slightly slower initial setup vs. long-term maintainability
-
-#### 4. FFmpeg Strategy
-**Decision Needed**: Package selection for FFmpeg
-- **Options**: 
-  - `@ffmpeg/ffmpeg` (WASM, web-based, easier bundling)
-  - Native FFmpeg binaries (faster, requires platform-specific bundling)
-- **Consideration**: Performance vs. ease of deployment
-- **Recommendation**: Start with `@ffmpeg/ffmpeg`, evaluate performance later
+1. Keep IPC surface minimal and validated; new channels `fs:exists` and `dialog:openVideo` restricted via preload.
+2. Prefer background workers for expensive operations (thumbnail gen stays async with caching).
 
 ## Next Steps (Immediate)
 

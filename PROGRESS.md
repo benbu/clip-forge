@@ -1,7 +1,7 @@
 # ClipForge Development Progress
 
-**Last Updated:** January 2025  
-**MVP Status:** ~95% Complete
+**Last Updated:** October 2025  
+**MVP Status:** ~98% Complete
 
 ## ✅ Completed Features
 
@@ -82,12 +82,12 @@
 
 ## 📊 Current Status
 
-**Overall Progress:** ~95% of MVP Complete
+**Overall Progress:** ~98% of MVP Complete
 
 ### Breakdown by Section:
 - ✅ Section 1-2: Foundation & UI (100%)
 - ✅ Section 3: FFmpeg Integration (100%)
-- 🔄 Section 4: Media Import (95%) - UI ready, needs file I/O
+- ✅ Section 4: Media Import (100%)
 - 🔄 Section 5: Video Player (90%) - Connected, needs playback
 - ✅ Section 6: Timeline Editor (100%)
 - 🔄 Section 7: Recording (67%) - Service ready, needs UI
@@ -131,16 +131,13 @@
 ## ⏳ What's Pending
 
 1. **Integration**
-   - Connect real file import to services
-   - Connect video playback to player
-   - Connect recording UI to service
-   - Wire up export to actual processing
+  - Connect recording UI to service
+  - Wire up export progress to UI
 
 2. **Functionality**
-   - Actual video playback
-   - Real file I/O operations
-   - Timeline-to-FFmpeg pipeline
-   - Recording UI modal
+  - Actual video playback
+  - Timeline-to-FFmpeg pipeline
+  - Recording UI modal
 
 3. **Polish**
    - Keyboard shortcuts
@@ -194,4 +191,18 @@ All major systems are in place:
 - ✅ Recording & export services
 - ✅ Project persistence
 
-The next phase is connecting the services together to enable actual video editing with real files and processing.
+The next phase focuses on Timeline & Editing upgrades and Recording UI polish.
+
+---
+
+## Update (Epic 2: Media Library & Asset Management) — October 2025
+
+Delivered:
+- Sortable columns and quick filters in Media Library
+- Clip Detail Drawer (metadata, rename, usage by track)
+- Async thumbnail caching with background generation
+- Missing-media detection and Relink workflow via secure IPC
+- Bulk actions: multi-select, batch delete, and add to timeline
+
+Notes:
+- New IPC: `fs:exists`, `dialog:openVideo` exposed via preload as `fileExists`, `openVideoDialog`

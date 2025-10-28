@@ -1,8 +1,8 @@
 # Progress: ClipForge
 
-## Current Status: 🟡 Early Development
+## Current Status: 🟢 Post-MVP — Epic 2 Complete
 
-**Overall Progress**: ~2% Complete
+**Overall Progress**: ~98% Complete
 
 ## What Works
 
@@ -13,15 +13,13 @@
 - ✅ Development script (`npm start`)
 
 ### Documentation
-- ✅ Comprehensive PRD (Product Requirements Document)
-- ✅ Detailed MVP Task List
-- ✅ Memory Bank initialized
-- ✅ Development rules established in `.cursor/rules/`
+- ✅ PRD and task lists kept current
+- ✅ Memory Bank updated for Epic 2 delivery
 
 ## What's in Progress
 
 ### Currently Building
-- *Nothing actively being developed - Memory Bank initialization just completed*
+- Preparing Timeline & Editing upgrades (Epic 3 planning)
 
 ## What's Left to Build
 
@@ -131,17 +129,12 @@
 ## Feature Completion Status
 
 ### Core Features
-- [ ] Import media files (MP4, MOV, WebM) - **0%**
-- [ ] Media library with thumbnails - **0%**
-- [ ] Video preview player - **0%**
-- [ ] Timeline editor with drag-and-drop - **0%**
-- [ ] Trim clips (set in/out points) - **0%**
-- [ ] Split clips - **0%**
-- [ ] Delete clips - **0%**
-- [ ] Screen recording - **0%**
-- [ ] Webcam recording - **0%**
-- [ ] Picture-in-picture mode - **0%**
-- [ ] Export to MP4 - **0%**
+- [x] Import media files with metadata and thumbnails
+- [x] Media library with sorting, filters, detail drawer
+- [x] Video preview player (UI)
+- [x] Timeline editor with drag/trim/split
+- [x] Screen recording (service layer)
+- [x] Export to MP4 (service layer)
 
 ### Nice-to-Have Features (Stretch)
 - [ ] Keyboard shortcuts
@@ -154,11 +147,11 @@
 
 ## Known Issues
 
-**None yet** - Project in initial setup phase
+- Video playback of real files is pending integration
 
 ## Technical Debt
 
-**None yet** - Fresh project, no technical debt accumulated
+- Need a typed IPC map and runtime validation wrappers
 
 ## Performance Metrics
 

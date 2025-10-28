@@ -11,11 +11,11 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [ ] Automatically import finished recordings into the media library with generated thumbnails, duration/size metadata, and a link back to the source file location.
 
 ## 2. Media Library & Asset Management
-- [ ] Expand the media library panel with sortable columns (name, duration, resolution, size, import date) and quick filters for recordings vs. external clips.
-- [ ] Add a clip detail drawer that exposes metadata, allows renaming, and lists every timeline track where the clip is used.
-- [ ] Implement asynchronous thumbnail generation with caching and background invalidation when source files change.
-- [ ] Provide a missing-media workflow: detect offline assets on app launch and let users relink files via `dialog.showOpenDialog`.
-- [ ] Support bulk actions (multi-select, batch delete, add to timeline) with keyboard modifiers and confirmation prompts.
+- [x] Expand the media library panel with sortable columns (name, duration, resolution, size, import date) and quick filters for recordings vs. external clips.
+- [x] Add a clip detail drawer that exposes metadata, allows renaming, and lists every timeline track where the clip is used.
+- [x] Implement asynchronous thumbnail generation with caching and background invalidation when source files change.
+- [x] Provide a missing-media workflow: detect offline assets on app launch and let users relink files via `dialog.showOpenDialog`.
+- [x] Support bulk actions (multi-select, batch delete, add to timeline) with keyboard modifiers and confirmation prompts.
 
 ## 3. Timeline & Editing Upgrades
 - [ ] Extend the timeline to support multiple synchronized video tracks plus at least one dedicated audio track; update `timelineStore` schema accordingly.
