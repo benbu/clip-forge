@@ -18,9 +18,11 @@
     "build:linux": "vite build && electron-builder --linux",
     "dist": "vite build && electron-builder",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/cli": "^4.1.16",
     "@tailwindcss/postcss": "^4.1.16",
     "@tailwindcss/vite": "^4.1.16",

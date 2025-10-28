@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { configDefaults } from 'vitest/config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -31,5 +32,6 @@ export default defineConfig({
     setupFiles: './src/setupTests.js',
     globals: true,
     css: true,
+    exclude: [...configDefaults.exclude, 'tests/**'],
   },
 });

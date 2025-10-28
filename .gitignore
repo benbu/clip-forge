@@ -95,3 +95,4 @@ webpack.config.js.bak
 # yarn.lock
 # pnpm-lock.yaml
 
+test-results
