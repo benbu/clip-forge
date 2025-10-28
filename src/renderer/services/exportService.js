@@ -92,8 +92,9 @@ export class ExportService {
           const recordingMeta = mediaFile.recordingMeta || clip.recordingMeta || {};
 
           const baseSource =
-            recordingMeta.basePath ||
+            recordingMeta.baseFile ||
             mediaFile.originalFile ||
+            recordingMeta.basePath ||
             mediaStore.fileBlobUrls?.[mediaFile.id] ||
             mediaFile.path;
 
@@ -112,7 +113,7 @@ export class ExportService {
           return {
             id: clip.id,
             source: baseSource,
-            overlaySource: recordingMeta.cameraPath || null,
+            overlaySource: recordingMeta.cameraFile || recordingMeta.cameraPath || null,
             overlayKeyframes: recordingMeta.overlayKeyframes || null,
             overlayDefaults: recordingMeta.overlay || recordingMeta.overlayDefaults || null,
             overlayMargin: recordingMeta.overlayMargin,
@@ -122,7 +123,8 @@ export class ExportService {
                 height: mediaFile.height,
               },
             cameraResolution: recordingMeta.cameraResolution || null,
-            previewSource: mediaFile.path,
+            previewSource:
+              recordingMeta.previewFile || mediaFile.originalFile || mediaFile.path,
             duration,
             sourceIn,
             sourceOut,

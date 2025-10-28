@@ -203,11 +203,29 @@ export function RecordingControls({ pushToast }) {
 
       const savedOutputs = await recordingService.persistRecordingOutputs(recordingResult);
 
-      const playbackResult = recordingResult.base || recordingResult.preview;
-      const playbackInfo = savedOutputs.base || savedOutputs.preview;
+      const playbackResult = recordingResult.preview || recordingResult.base;
+      const playbackInfo = savedOutputs.preview || savedOutputs.base;
 
-      if (!recordingResult.base && recordingResult.preview) {
-        console.warn('Falling back to preview recording for playback; audio may be missing');
+      const baseFile =
+        recordingResult.base?.blob && savedOutputs.base
+          ? new File([recordingResult.base.blob], savedOutputs.base.fileName, {
+              type: recordingResult.base.mimeType || 'video/webm',
+              lastModified: Date.now(),
+            })
+          : null;
+      if (baseFile && savedOutputs.base?.path) {
+        baseFile.path = savedOutputs.base.path;
+      }
+
+      const cameraFile =
+        recordingResult.camera?.blob && savedOutputs.camera
+          ? new File([recordingResult.camera.blob], savedOutputs.camera.fileName, {
+              type: recordingResult.camera.mimeType || 'video/webm',
+              lastModified: Date.now(),
+            })
+          : null;
+      if (cameraFile && savedOutputs.camera?.path) {
+        cameraFile.path = savedOutputs.camera.path;
       }
 
       if (!playbackResult || !playbackInfo) {
@@ -240,8 +258,11 @@ export function RecordingControls({ pushToast }) {
         overlay: snapshot.cameraEnabled && snapshot.overlay ? { ...snapshot.overlay } : null,
         overlayKeyframes: overlayKeyframes.length > 0 ? overlayKeyframes : null,
         previewPath: playbackInfo.path,
+        previewFile: playbackFile,
         basePath: savedOutputs.base?.path || null,
+        baseFile,
         cameraPath: savedOutputs.camera?.path || null,
+        cameraFile,
         cameraResolution: recordingResult.cameraDimensions || null,
         screenResolution: recordingResult.screenDimensions || null,
         overlayDefaults: recordingResult.overlayDefaults || null,

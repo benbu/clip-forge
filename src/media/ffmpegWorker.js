@@ -484,13 +484,19 @@ async function prepareClip(instance, clip, index) {
   await writeInputFile(instance, sourceName, clip.source ?? clip.path);
   cleanup.add(sourceName);
 
+  let workingBaseName = sourceName;
+  if (!sourceName.endsWith('.mp4')) {
+    const convertedName = `clip_src_${index}_conv.mp4`;
+    await transcodeClip(instance, sourceName, convertedName);
+    cleanup.add(convertedName);
+    workingBaseName = convertedName;
+  }
+
   const trimStart = Math.max(0, Number(clip.sourceIn ?? 0));
   const inferredDuration =
     clip.sourceOut != null
       ? Math.max(0, Number(clip.sourceOut) - trimStart)
       : Math.max(0, Number(clip.duration ?? 0));
-  let workingBaseName = sourceName;
-
   const requiresTrim = trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut));
 
   if (requiresTrim) {
@@ -499,7 +505,7 @@ async function prepareClip(instance, clip, index) {
     if (trimStart > 0) {
       args.push('-ss', trimStart.toFixed(3));
     }
-    args.push('-i', sourceName);
+    args.push('-i', workingBaseName);
     if (inferredDuration > 0) {
       args.push('-t', inferredDuration.toFixed(3));
     }
@@ -567,13 +573,19 @@ async function prepareClip(instance, clip, index) {
   cleanup.add(cameraInputName);
 
   let workingCameraName = cameraInputName;
+  if (!cameraInputName.endsWith('.mp4')) {
+    const convertedCamera = `clip_camera_${index}_conv.mp4`;
+    await transcodeClip(instance, cameraInputName, convertedCamera);
+    cleanup.add(convertedCamera);
+    workingCameraName = convertedCamera;
+  }
   if (trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut))) {
     const trimmedCamera = `clip_camera_trim_${index}.mp4`;
     const args = [];
     if (trimStart > 0) {
       args.push('-ss', trimStart.toFixed(3));
     }
-    args.push('-i', cameraInputName);
+    args.push('-i', workingCameraName);
     if (inferredDuration > 0) {
       args.push('-t', inferredDuration.toFixed(3));
     }
