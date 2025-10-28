@@ -278,7 +278,8 @@ const computeOverlayPosition = (
   }
 };
 
-async function transcodeClip(instance, inputName, outputName) {
+async function transcodeClip(instance, inputName, outputName, options = {}) {
+  const volume = Number.isFinite(options.volume) ? options.volume : 1;
   await runCommand(instance, [
     '-i',
     inputName,
@@ -294,6 +295,7 @@ async function transcodeClip(instance, inputName, outputName) {
     'aac',
     '-b:a',
     '192k',
+    ...(volume !== 1 ? ['-af', `volume=${volume}`] : []),
     '-shortest',
     '-movflags',
     'faststart',
@@ -310,6 +312,8 @@ async function composeClipWithOverlay(instance, context) {
     cameraInputName,
   } = context;
 
+  const volumeScalar = Number.isFinite(clip.volume) ? clip.volume : 1;
+
   const normalized = normalizeOverlayKeyframes(
     clip.overlayKeyframes,
     clip.duration,
@@ -318,7 +322,9 @@ async function composeClipWithOverlay(instance, context) {
 
   if (normalized.length === 0) {
     const fallbackName = `prepared_clip_${index}.mp4`;
-    await transcodeClip(instance, baseInputName, fallbackName);
+    await transcodeClip(instance, baseInputName, fallbackName, {
+      volume: volumeScalar,
+    });
     return fallbackName;
   }
 
@@ -414,6 +420,7 @@ async function composeClipWithOverlay(instance, context) {
       'aac',
       '-b:a',
       '192k',
+      ...(volumeScalar !== 1 ? ['-filter:a', `volume=${volumeScalar}`] : []),
       '-shortest',
       '-movflags',
       'faststart',
@@ -479,6 +486,7 @@ const inferExtension = (value, fallback = '.mp4') => {
 
 async function prepareClip(instance, clip, index) {
   const cleanup = new Set();
+  const volumeScalar = Math.max(0, Number(clip.volume ?? 1));
   const sourceExt = inferExtension(clip.source ?? clip.path ?? clip.name, '.webm');
   const sourceName = `clip_src_${index}${sourceExt}`;
   await writeInputFile(instance, sourceName, clip.source ?? clip.path);
@@ -511,6 +519,9 @@ async function prepareClip(instance, clip, index) {
     }
     // Prefer stream copy for MP4 to speed up trimming; fallback to re-encode if it fails
     const tryCopy = async () => {
+      if (volumeScalar !== 1) {
+        throw new Error('Volume adjustment requires re-encode');
+      }
       const copyArgs = [...args, '-c', 'copy', '-movflags', 'faststart', trimmedName];
       await runCommand(instance, copyArgs);
     };
@@ -523,6 +534,7 @@ async function prepareClip(instance, clip, index) {
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
         '-b:a', '192k',
+        ...(volumeScalar !== 1 ? ['-af', `volume=${volumeScalar}`] : []),
         '-movflags', 'faststart',
         trimmedName,
       ];
@@ -546,7 +558,7 @@ async function prepareClip(instance, clip, index) {
 
   if (!hasOverlaySource) {
     const preparedName = `prepared_clip_${index}.mp4`;
-    if (!requiresTrim && sourceExt === '.mp4') {
+    if (!requiresTrim && sourceExt === '.mp4' && volumeScalar === 1) {
       // Fast path: no overlay, no trim, mp4 input → stream copy
       try {
         await runCommand(instance, [
@@ -556,10 +568,14 @@ async function prepareClip(instance, clip, index) {
           preparedName,
         ]);
       } catch (_) {
-        await transcodeClip(instance, workingBaseName, preparedName);
+        await transcodeClip(instance, workingBaseName, preparedName, {
+          volume: volumeScalar,
+        });
       }
     } else {
-      await transcodeClip(instance, workingBaseName, preparedName);
+      await transcodeClip(instance, workingBaseName, preparedName, {
+        volume: volumeScalar,
+      });
     }
     for (const name of cleanup) {
       await safeDelete(instance, name);
@@ -625,6 +641,7 @@ async function prepareClip(instance, clip, index) {
       clip: {
         ...clip,
         duration: inferredDuration || clip.duration,
+        volume: volumeScalar,
       },
       index,
       baseInputName: workingBaseName,

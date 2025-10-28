@@ -19,7 +19,7 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 
 ## 3. Timeline & Editing Upgrades
 - [x] Extend the timeline to support multiple synchronized video tracks plus at least one dedicated audio track; update `timelineStore` schema accordingly.
-- [ ] Enable overlay layers for PiP clips with transform handles (position, scale) that feed into export compositing.
+- [x] Enable overlay layers for PiP clips with transform handles (position, scale) that feed into export compositing.
 - [ ] Render audio waveforms for timeline clips using precomputed peak data and allow per-clip gain adjustments.
 - [x] Add track-level controls: lock, mute/solo, visibility toggles, and adjustable track heights.
 - [ ] Implement ripple editing and intelligent gap handling when clips are trimmed or removed.

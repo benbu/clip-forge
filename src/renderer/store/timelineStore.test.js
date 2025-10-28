@@ -94,7 +94,11 @@ describe('timelineStore', () => {
   it('moves clips between tracks when requested', () => {
     const clip = { id: 'clip-track', start: 0, duration: 4 };
     getState().addClip(clip);
-    const secondVideoTrack = DEFAULT_TRACKS[1].id;
+    const secondVideoTrack = DEFAULT_TRACKS.find(
+      (track) => track.type === 'video' && track.id !== DEFAULT_TRACKS[0].id
+    )?.id;
+
+    expect(secondVideoTrack).toBeTruthy();
 
     getState().moveClipToTrack('clip-track', secondVideoTrack);
     const updated = getState().clips.find((c) => c.id === 'clip-track');
@@ -115,7 +119,8 @@ describe('timelineStore', () => {
   });
 
   it('toggles solo state without muting locked tracks', () => {
-    const trackId = DEFAULT_TRACKS[2].id;
+    const trackId = DEFAULT_TRACKS.find((track) => track.type === 'audio')?.id;
+    expect(trackId).toBeTruthy();
     expect(getState().tracks.find((t) => t.id === trackId)?.isSolo).toBe(false);
     getState().toggleTrackSolo(trackId);
     expect(getState().tracks.find((t) => t.id === trackId)?.isSolo).toBe(true);
@@ -147,5 +152,15 @@ describe('timelineStore', () => {
     expect(lockedClip?.start).toBe(0);
     expect(lockedClip?.end).toBe(6);
     expect(getState().clips).toHaveLength(1);
+  });
+
+  it('normalizes clip volume and keeps waveform metadata', () => {
+    const waveform = { peaks: [0, 0], samples: 1 };
+    const clip = { id: 'clip-audio', start: 0, duration: 2, volume: 250, waveform };
+    getState().addClip(clip);
+
+    const stored = getState().clips.find((c) => c.id === 'clip-audio');
+    expect(stored?.volume).toBe(200);
+    expect(stored?.waveform).toEqual(waveform);
   });
 });

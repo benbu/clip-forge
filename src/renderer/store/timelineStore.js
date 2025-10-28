@@ -15,8 +15,9 @@ const withDefaultTrackState = (track, index = 0) => ({
 
 export const DEFAULT_TRACKS = [
   withDefaultTrackState({ id: 'video-1', type: 'video', name: 'Video Track 1', order: 0 }, 0),
-  withDefaultTrackState({ id: 'video-2', type: 'video', name: 'Video Track 2', order: 1 }, 1),
-  withDefaultTrackState({ id: 'audio-1', type: 'audio', name: 'Audio Track 1', order: 2 }, 2),
+  withDefaultTrackState({ id: 'overlay-1', type: 'overlay', name: 'Overlay Track', order: 1 }, 1),
+  withDefaultTrackState({ id: 'video-2', type: 'video', name: 'Video Track 2', order: 2 }, 2),
+  withDefaultTrackState({ id: 'audio-1', type: 'audio', name: 'Audio Track 1', order: 3 }, 3),
 ];
 
 /**
@@ -216,6 +217,11 @@ export const useTimelineStore = create((set, get) => ({
         mediaType: normalizedMediaType,
       };
 
+      normalizedClip.volume = Math.max(0, Math.min(200, clip.volume ?? 100));
+      if (clip.waveform && !normalizedClip.waveform) {
+        normalizedClip.waveform = clip.waveform;
+      }
+
       if (!normalizedClip.trackId) {
         throw new Error('No track available to place clip');
       }
@@ -292,9 +298,26 @@ export const useTimelineStore = create((set, get) => ({
         return state;
       }
 
+      const normalizeUpdates = (clip) => {
+        const next = { ...clip, ...updates };
+        if (updates.volume != null) {
+          next.volume = Math.max(0, Math.min(200, Number(updates.volume) || 0));
+        }
+        if (updates.waveform) {
+          next.waveform = updates.waveform;
+        }
+        if (updates.overlayTransform) {
+          next.overlayTransform = updates.overlayTransform;
+        }
+        if (updates.recordingMeta) {
+          next.recordingMeta = updates.recordingMeta;
+        }
+        return next;
+      };
+
       return {
         clips: state.clips.map((clip) =>
-          clip.id === clipId ? { ...clip, ...updates } : clip
+          clip.id === clipId ? normalizeUpdates(clip) : clip
         ),
       };
     }),

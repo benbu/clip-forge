@@ -2,8 +2,10 @@
  * Media Service - Handles file import and metadata extraction
  */
 
+import { computeWaveformPeaks } from './waveformService';
+
 /**
- * Import video files and extract metadata
+ * Import media files and extract metadata
  * @param {File[]} files - Array of File objects
  * @returns {Promise<Array>} Array of file objects with metadata
  */
@@ -19,6 +21,16 @@ export async function importVideoFiles(files, options = {}) {
       // Generate thumbnail
       const thumbnail = await generateVideoThumbnail(file);
       
+      let waveform = null;
+
+      if (file.type?.startsWith('audio/') || file.name.toLowerCase().endsWith('.wav')) {
+        try {
+          waveform = await computeWaveformPeaks(file, { sampleCount: 400 });
+        } catch (waveformError) {
+          console.warn(`Waveform extraction failed for ${file.name}:`, waveformError);
+        }
+      }
+
       // Create file object
       const fileObj = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -37,6 +49,10 @@ export async function importVideoFiles(files, options = {}) {
         createdAt: new Date().toISOString(), // import date
         sourceType: 'external', // default for manual imports; recordings can override to 'recording'
       };
+
+      if (waveform) {
+        fileObj.waveform = waveform;
+      }
 
       if (typeof enrichFile === 'function') {
         try {

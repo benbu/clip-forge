@@ -10,7 +10,6 @@ import { useTimelineStore } from '@/store/timelineStore';
 import { RecordingControls } from '@/components/features/Recording/RecordingControls';
 
 export default function App() {
-  console.log('App render invoked');
 
   const [toasts, setToasts] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
@@ -19,10 +18,6 @@ export default function App() {
 
   useEffect(() => {
     exportService.onProgress((percent) => setExportProgress(percent));
-  }, []);
-
-  useEffect(() => {
-    console.log('App mounted - banner?', document.querySelector('[role="banner"]'));
   }, []);
 
   const removeToast = useCallback(

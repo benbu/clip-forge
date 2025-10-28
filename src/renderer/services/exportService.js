@@ -89,7 +89,7 @@ export class ExportService {
           const mediaFile = mediaStore.files.find((f) => f.id === clip.mediaFileId);
           if (!mediaFile) return null;
 
-          const recordingMeta = mediaFile.recordingMeta || clip.recordingMeta || {};
+          const recordingMeta = clip.recordingMeta || mediaFile.recordingMeta || {};
 
           const baseSource =
             recordingMeta.baseFile ||
@@ -109,6 +109,30 @@ export class ExportService {
           const sourceOut =
             clip.sourceOut ??
             (clip.sourceIn != null ? clip.sourceIn + duration : duration);
+
+          const baseOverlayDefaults =
+            recordingMeta.overlay || recordingMeta.overlayDefaults || null;
+
+          const overlayTransform = clip.overlayTransform;
+          const overlayDefaults = overlayTransform
+            ? {
+                ...(baseOverlayDefaults || {}),
+                ...overlayTransform,
+              }
+            : baseOverlayDefaults;
+
+          const overlayKeyframes = overlayTransform
+            ? [
+                {
+                  timestamp: 0,
+                  overlay: {
+                    ...(overlayDefaults || overlayTransform),
+                  },
+                },
+              ]
+            : recordingMeta.overlayKeyframes || null;
+
+          const volumeScalar = Math.max(0, Number(clip.volume ?? recordingMeta.volume ?? 100) / 100);
 
           return {
             id: clip.id,
@@ -131,6 +155,7 @@ export class ExportService {
             name: mediaFile.name,
             sourceType: mediaFile.sourceType,
             recordingMeta,
+            volume: volumeScalar,
           };
         })
         .filter(Boolean);

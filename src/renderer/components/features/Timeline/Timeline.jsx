@@ -98,7 +98,16 @@ export function Timeline() {
       if (data && data.type === 'media-file' && data.file) {
         // Convert media file to timeline clip
         const duration = parseDurationToSeconds(data.file.duration) || data.file.durationSeconds || 0;
-        const mediaCategory = deriveMediaCategory(data.file);
+        const recordingMeta = data.file.recordingMeta
+          ? JSON.parse(JSON.stringify(data.file.recordingMeta))
+          : null;
+        const isOverlayAsset = Boolean(
+          recordingMeta?.cameraPath ||
+            recordingMeta?.cameraEnabled ||
+            recordingMeta?.overlayKeyframes?.length
+        );
+        const baseMediaCategory = deriveMediaCategory(data.file);
+        const mediaCategory = isOverlayAsset ? 'overlay' : baseMediaCategory;
         const targetTrack = tracks.find((track) => track.id === trackId);
         if (targetTrack?.isLocked) {
           console.warn(`Track "${targetTrack.name}" is locked; drop cancelled.`);
@@ -107,14 +116,37 @@ export function Timeline() {
         const isTrackCompatible =
           mediaCategory === 'audio'
             ? targetTrack?.type === 'audio'
-            : targetTrack?.type !== 'audio';
+            : mediaCategory === 'overlay'
+              ? targetTrack?.type === 'overlay'
+              : targetTrack?.type === 'video';
         const fallbackTrack = tracks.find((track) =>
-          mediaCategory === 'audio' ? track.type === 'audio' : track.type !== 'audio'
+          mediaCategory === 'audio'
+            ? track.type === 'audio'
+            : mediaCategory === 'overlay'
+              ? track.type === 'overlay'
+              : track.type === 'video'
         );
         const resolvedTrackId = isTrackCompatible
           ? trackId
           : fallbackTrack?.id ?? trackId;
-        
+
+        const overlayDefaults =
+          recordingMeta?.overlay ||
+          recordingMeta?.overlayDefaults ||
+          recordingMeta?.cameraOverlay ||
+          null;
+
+        const overlayTransform = overlayDefaults
+          ? {
+              position: overlayDefaults.position ?? 'top-right',
+              size: overlayDefaults.size ?? 0.22,
+              borderRadius: overlayDefaults.borderRadius ?? 12,
+              coordinates: overlayDefaults.coordinates ?? null,
+            }
+          : undefined;
+
+        const waveform = data.file.waveform || null;
+
         const newClip = {
           id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           mediaFileId: data.file.id,
@@ -128,6 +160,9 @@ export function Timeline() {
           endTrim: duration,
           volume: 100,
           createdAt: new Date().toISOString(),
+          recordingMeta,
+          overlayTransform,
+          waveform,
         };
         
         addClip(newClip);
