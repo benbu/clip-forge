@@ -53,12 +53,34 @@ const createMainWindow = () => {
 };
 
 // IPC Handlers
+const serializeSource = (source) => {
+  const thumbnail =
+    source.thumbnail && typeof source.thumbnail.toDataURL === 'function'
+      ? source.thumbnail.toDataURL()
+      : null;
+  const appIcon =
+    source.appIcon && typeof source.appIcon.toDataURL === 'function'
+      ? source.appIcon.toDataURL()
+      : null;
+
+  return {
+    id: source.id,
+    name: source.name,
+    displayId: source.display_id,
+    thumbnail,
+    appIcon,
+    primary: source.id?.toLowerCase().includes('screen'),
+  };
+};
+
 ipcMain.handle('getScreenSources', async () => {
   try {
     const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen']
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: true,
     });
-    return sources;
+    return sources.map(serializeSource);
   } catch (error) {
     console.error('Error getting screen sources:', error);
     throw error;
@@ -132,6 +154,37 @@ ipcMain.handle('chooseExportPath', async (event, suggestedName) => {
     return result.filePath;
   } catch (error) {
     console.error('Error choosing export path:', error);
+    throw error;
+  }
+});
+
+const sanitizeFileName = (value) =>
+  value.replace(/[<>:"/\\|?*\x00-\x1F]/g, '').replace(/\s+/g, ' ').trim();
+
+ipcMain.handle('prepareRecordingPath', async (event, options = {}) => {
+  try {
+    const { extension = 'webm', fileName = null } = options || {};
+    const baseDir =
+      app.getPath('videos') ||
+      app.getPath('documents') ||
+      app.getPath('downloads');
+    const recordingsDir = path.join(baseDir, 'ClipForge', 'Recordings');
+
+    await fs.mkdir(recordingsDir, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const rawName =
+      fileName && typeof fileName === 'string'
+        ? sanitizeFileName(fileName)
+        : `ClipForge-Recording-${timestamp}`;
+
+    const safeName = rawName.endsWith(`.${extension}`)
+      ? rawName
+      : `${rawName}.${extension}`;
+
+    return path.join(recordingsDir, safeName);
+  } catch (error) {
+    console.error('Error preparing recording path:', error);
     throw error;
   }
 });

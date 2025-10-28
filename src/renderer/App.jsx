@@ -7,6 +7,7 @@ import { ResizablePanel } from './components/ui/ResizablePanel';
 import { ToastContainer } from '@/components/ui/Toast';
 import { exportService } from '@/services/exportService';
 import { useTimelineStore } from '@/store/timelineStore';
+import { RecordingControls } from '@/components/features/Recording/RecordingControls';
 
 export default function App() {
   const [toasts, setToasts] = useState([]);
@@ -99,9 +100,9 @@ export default function App() {
       {/* Top Bar */}
       <header className="h-12 border-b border-white/10 bg-zinc-900/60 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/50 flex items-center px-3 select-none flex-shrink-0">
         <div className="font-semibold tracking-wide">ClipForge</div>
-        <div className="ml-auto flex items-center gap-2 text-sm">
+        <div className="ml-auto flex items-center gap-3 text-sm">
           <button className="px-3 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 transition">Import</button>
-          <button className="px-3 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 transition">Record</button>
+          <RecordingControls pushToast={pushToast} />
           <button
             className="px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleExport}

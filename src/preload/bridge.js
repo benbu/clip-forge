@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFile: (filePath, buffer) => ipcRenderer.invoke('saveFile', filePath, buffer),
   logMessage: (payload) => ipcRenderer.invoke('logMessage', payload),
   chooseExportPath: (suggestedName) => ipcRenderer.invoke('chooseExportPath', suggestedName),
+  prepareRecordingPath: (options) => ipcRenderer.invoke('prepareRecordingPath', options),
 });
