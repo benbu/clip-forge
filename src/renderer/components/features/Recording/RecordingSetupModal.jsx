@@ -31,65 +31,34 @@ export function RecordingSetupModal({ onStartRecording, busy }) {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const {
-    isSetupModalOpen,
-    closeSetupModal,
-    sources,
-    selectedSourceId,
-    sourceQuery,
-    setSourceQuery,
-    setSources,
-    selectSource,
-    setIsFetchingSources,
-    isFetchingSources,
-    availableCameras,
-    setAvailableCameras,
-    cameraEnabled,
-    setCameraEnabled,
-    selectCamera,
-    selectedCameraId,
-    overlay,
-    setOverlayPosition,
-    setOverlaySize,
-    setOverlayBorderRadius,
-    audioEnabled,
-    setAudioEnabled,
-    availableAudioInputs,
-    setAvailableAudioInputs,
-    selectedAudioInputId,
-    selectAudioInput,
-    isAudioMuted,
-    toggleMute,
-  } = useRecordingStore((state) => ({
-    isSetupModalOpen: state.isSetupModalOpen,
-    closeSetupModal: state.closeSetupModal,
-    sources: state.sources,
-    selectedSourceId: state.selectedSourceId,
-    sourceQuery: state.sourceQuery,
-    setSourceQuery: state.setSourceQuery,
-    setSources: state.setSources,
-    selectSource: state.selectSource,
-    setIsFetchingSources: state.setIsFetchingSources,
-    isFetchingSources: state.isFetchingSources,
-    availableCameras: state.availableCameras,
-    setAvailableCameras: state.setAvailableCameras,
-    cameraEnabled: state.cameraEnabled,
-    setCameraEnabled: state.setCameraEnabled,
-    selectCamera: state.selectCamera,
-    selectedCameraId: state.selectedCameraId,
-    overlay: state.overlay,
-    setOverlayPosition: state.setOverlayPosition,
-    setOverlaySize: state.setOverlaySize,
-    setOverlayBorderRadius: state.setOverlayBorderRadius,
-    audioEnabled: state.audioEnabled,
-    setAudioEnabled: state.setAudioEnabled,
-    availableAudioInputs: state.availableAudioInputs,
-    setAvailableAudioInputs: state.setAvailableAudioInputs,
-    selectedAudioInputId: state.selectedAudioInputId,
-    selectAudioInput: state.selectAudioInput,
-    isAudioMuted: state.isAudioMuted,
-    toggleMute: state.toggleMute,
-  }));
+  const isSetupModalOpen = useRecordingStore((state) => state.isSetupModalOpen);
+  const closeSetupModal = useRecordingStore((state) => state.closeSetupModal);
+  const sources = useRecordingStore((state) => state.sources);
+  const selectedSourceId = useRecordingStore((state) => state.selectedSourceId);
+  const sourceQuery = useRecordingStore((state) => state.sourceQuery);
+  const setSourceQuery = useRecordingStore((state) => state.setSourceQuery);
+  const setSources = useRecordingStore((state) => state.setSources);
+  const selectSource = useRecordingStore((state) => state.selectSource);
+  const setIsFetchingSources = useRecordingStore((state) => state.setIsFetchingSources);
+  const isFetchingSources = useRecordingStore((state) => state.isFetchingSources);
+  const availableCameras = useRecordingStore((state) => state.availableCameras);
+  const setAvailableCameras = useRecordingStore((state) => state.setAvailableCameras);
+  const cameraEnabled = useRecordingStore((state) => state.cameraEnabled);
+  const setCameraEnabled = useRecordingStore((state) => state.setCameraEnabled);
+  const selectCamera = useRecordingStore((state) => state.selectCamera);
+  const selectedCameraId = useRecordingStore((state) => state.selectedCameraId);
+  const overlay = useRecordingStore((state) => state.overlay);
+  const setOverlayPosition = useRecordingStore((state) => state.setOverlayPosition);
+  const setOverlaySize = useRecordingStore((state) => state.setOverlaySize);
+  const setOverlayBorderRadius = useRecordingStore((state) => state.setOverlayBorderRadius);
+  const audioEnabled = useRecordingStore((state) => state.audioEnabled);
+  const setAudioEnabled = useRecordingStore((state) => state.setAudioEnabled);
+  const availableAudioInputs = useRecordingStore((state) => state.availableAudioInputs);
+  const setAvailableAudioInputs = useRecordingStore((state) => state.setAvailableAudioInputs);
+  const selectedAudioInputId = useRecordingStore((state) => state.selectedAudioInputId);
+  const selectAudioInput = useRecordingStore((state) => state.selectAudioInput);
+  const isAudioMuted = useRecordingStore((state) => state.isAudioMuted);
+  const toggleMute = useRecordingStore((state) => state.toggleMute);
 
   const filteredSources = useMemo(() => {
     if (!sourceQuery) return sources;

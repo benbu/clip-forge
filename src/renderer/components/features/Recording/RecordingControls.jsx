@@ -28,51 +28,27 @@ export function RecordingControls({ pushToast }) {
   const addFiles = useMediaStore((state) => state.addFiles);
   const [isStarting, setIsStarting] = useState(false);
 
-  const {
-    status,
-    openSetupModal,
-    closeSetupModal,
-    countdownSeconds,
-    setStatus,
-    setCountdown,
-    clearCountdown,
-    markSessionStart,
-    resetSession,
-    updateElapsed,
-    elapsedSeconds,
-    markPaused,
-    resumeFromPause,
-    setMeterLevel,
-    meterLevel,
-    isAudioMuted,
-    toggleMute,
-    audioEnabled,
-    cameraEnabled,
-    overlay,
-    cycleOverlayPosition,
-  } = useRecordingStore((state) => ({
-    status: state.status,
-    openSetupModal: state.openSetupModal,
-    closeSetupModal: state.closeSetupModal,
-    countdownSeconds: state.countdownSeconds,
-    setStatus: state.setStatus,
-    setCountdown: state.setCountdown,
-    clearCountdown: state.clearCountdown,
-    markSessionStart: state.markSessionStart,
-    resetSession: state.resetSession,
-    updateElapsed: state.updateElapsed,
-    elapsedSeconds: state.elapsedSeconds,
-    markPaused: state.markPaused,
-    resumeFromPause: state.resumeFromPause,
-    setMeterLevel: state.setMeterLevel,
-    meterLevel: state.meterLevel,
-    isAudioMuted: state.isAudioMuted,
-    toggleMute: state.toggleMute,
-    audioEnabled: state.audioEnabled,
-    cameraEnabled: state.cameraEnabled,
-    overlay: state.overlay,
-    cycleOverlayPosition: state.cycleOverlayPosition,
-  }));
+  const status = useRecordingStore((state) => state.status);
+  const openSetupModal = useRecordingStore((state) => state.openSetupModal);
+  const closeSetupModal = useRecordingStore((state) => state.closeSetupModal);
+  const countdownSeconds = useRecordingStore((state) => state.countdownSeconds);
+  const setStatus = useRecordingStore((state) => state.setStatus);
+  const setCountdown = useRecordingStore((state) => state.setCountdown);
+  const clearCountdown = useRecordingStore((state) => state.clearCountdown);
+  const markSessionStart = useRecordingStore((state) => state.markSessionStart);
+  const resetSession = useRecordingStore((state) => state.resetSession);
+  const updateElapsed = useRecordingStore((state) => state.updateElapsed);
+  const elapsedSeconds = useRecordingStore((state) => state.elapsedSeconds);
+  const markPaused = useRecordingStore((state) => state.markPaused);
+  const resumeFromPause = useRecordingStore((state) => state.resumeFromPause);
+  const setMeterLevel = useRecordingStore((state) => state.setMeterLevel);
+  const meterLevel = useRecordingStore((state) => state.meterLevel);
+  const isAudioMuted = useRecordingStore((state) => state.isAudioMuted);
+  const toggleMute = useRecordingStore((state) => state.toggleMute);
+  const audioEnabled = useRecordingStore((state) => state.audioEnabled);
+  const cameraEnabled = useRecordingStore((state) => state.cameraEnabled);
+  const overlay = useRecordingStore((state) => state.overlay);
+  const cycleOverlayPosition = useRecordingStore((state) => state.cycleOverlayPosition);
 
   const busy = useMemo(
     () => ['preparing', 'countdown', 'saving'].includes(status),
@@ -234,10 +210,13 @@ export function RecordingControls({ pushToast }) {
     toggleMute();
   }, [isAudioMuted, toggleMute]);
 
-  const audioMeterWidth = Math.round((meterLevel || 0) * 100);
-  const overlayPositionLabel =
-    OVERLAY_POSITIONS.find((position) => position.id === overlay?.position)?.label ||
-    'Top Right';
+  const audioMeterWidth = useMemo(() => Math.round((meterLevel || 0) * 100), [meterLevel]);
+  const overlayPositionLabel = useMemo(() => {
+    return (
+      OVERLAY_POSITIONS.find((position) => position.id === overlay?.position)?.label ||
+      'Top Right'
+    );
+  }, [overlay]);
 
   return (
     <>
