@@ -4,11 +4,11 @@
 Now that the MVP scope is delivered, this list captures every outstanding capability promised in the PRD (v1.1, Oct 27 2025). Tasks are grouped by feature area and assume the current Electron + React architecture (`src/main`, `src/preload/bridge.js`, `src/renderer`, `src/media`, `src/recorder`). Prioritize sections 1–5 to reach feature completeness, then tackle the stretch goals.
 
 ## 1. Recording Enhancements
-- [ ] Build a screen/window picker modal that surfaces `desktopCapturer.getSources()` results with live thumbnails, search, and permission prompts before starting a capture session.
-- [ ] Add simultaneous screen + webcam capture with picture-in-picture layout controls (corner position presets, drag-to-reposition, resize) and persist the overlay choice per recording.
-- [ ] Implement audio input routing: microphone source selection, input level meter (Web Audio API), and per-track mute toggles before/during recording.
-- [ ] Introduce a recording session controller (countdown, pause/resume, elapsed timer) anchored in the top bar and mirrored in system tray/status.
-- [ ] Automatically import finished recordings into the media library with generated thumbnails, duration/size metadata, and a link back to the source file location.
+- [x] Build a screen/window picker modal that surfaces `desktopCapturer.getSources()` results with live thumbnails, search, and permission prompts before starting a capture session.
+- [x] Add simultaneous screen + webcam capture with picture-in-picture layout controls (corner position presets, drag-to-reposition, resize) and persist the overlay choice per recording.
+- [x] Implement audio input routing: microphone source selection, input level meter (Web Audio API), and per-track mute toggles before/during recording.
+- [x] Introduce a recording session controller (countdown, pause/resume, elapsed timer) anchored in the top bar and mirrored in system tray/status.
+- [x] Automatically import finished recordings into the media library with generated thumbnails, duration/size metadata, and a link back to the source file location.
 
 ## 2. Media Library & Asset Management
 - [x] Expand the media library panel with sortable columns (name, duration, resolution, size, import date) and quick filters for recordings vs. external clips.
