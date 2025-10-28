@@ -113,51 +113,47 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main 3-panel layout */}
-      <main className="flex gap-2 p-2 flex-1 min-h-0">
-        {/* Left: Media Library */}
-        <ResizablePanel
-          id="media-library"
-          side="left"
-          defaultSize={280}
-          minSize={200}
-          maxSize={600}
-        >
-          <MediaLibrary />
-        </ResizablePanel>
+      <main className="flex flex-col flex-1 min-h-0 gap-1 p-2">
+        <section className="flex gap-1 flex-1 min-h-0">
+          <ResizablePanel
+            id="media-library"
+            side="left"
+            defaultSize={280}
+            minSize={200}
+            maxSize={600}
+          >
+            <MediaLibrary />
+          </ResizablePanel>
 
-        {/* Center: Player (flexible) */}
-        <div className="flex-1 min-w-0">
-          <VideoPlayer />
-        </div>
+          <div className="flex-1 min-w-0 flex gap-1">
+            <div className="flex-1 min-w-0">
+              <VideoPlayer />
+            </div>
 
-        {/* Right: Settings */}
+            <ResizablePanel
+              id="settings"
+              side="right"
+              defaultSize={320}
+              minSize={200}
+              maxSize={600}
+              className="flex flex-col"
+            >
+              <SettingsPanel />
+            </ResizablePanel>
+          </div>
+        </section>
+
         <ResizablePanel
-          id="settings"
-          side="right"
-          defaultSize={320}
-          minSize={200}
+          id="timeline"
+          side="top"
+          defaultSize={256}
+          minSize={150}
           maxSize={600}
+          className="w-full flex flex-col border-t border-white/10 bg-zinc-900/60"
         >
-          <aside className="h-full rounded-lg border border-white/10 bg-zinc-900/40 p-2">
-            <SettingsPanel />
-          </aside>
+          <Timeline />
         </ResizablePanel>
       </main>
-
-      {/* Bottom: Timeline (resizable) */}
-      <ResizablePanel
-        id="timeline"
-        side="top"
-        defaultSize={256}
-        minSize={150}
-        maxSize={600}
-        className="w-full"
-      >
-        <footer className="h-full w-full border-t border-white/10 bg-zinc-900/60 p-2">
-          <Timeline />
-        </footer>
-      </ResizablePanel>
     </div>
   );
 }

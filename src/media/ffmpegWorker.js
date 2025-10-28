@@ -366,20 +366,22 @@ async function composeClipWithOverlay(instance, context) {
 
 async function prepareClip(instance, clip, index) {
   const cleanup = new Set();
-  const baseInputName = `clip_base_${index}.webm`;
-  await writeInputFile(instance, baseInputName, clip.source ?? clip.path);
-  cleanup.add(baseInputName);
+  const sourceName = `clip_src_${index}${clip.source && typeof clip.source === 'string' && clip.source.endsWith('.webm') ? '.webm' : '.mp4'}`;
+  await writeInputFile(instance, sourceName, clip.source ?? clip.path);
+  cleanup.add(sourceName);
 
   const trimStart = Math.max(0, Number(clip.sourceIn ?? 0));
   const inferredDuration =
     clip.sourceOut != null
       ? Math.max(0, Number(clip.sourceOut) - trimStart)
       : Math.max(0, Number(clip.duration ?? 0));
-  let workingBaseName = baseInputName;
+  let workingBaseName = sourceName;
 
-  if (trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut))) {
+  const requiresTrim = trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut));
+
+  if (requiresTrim) {
     const trimmedName = `clip_trim_${index}.mp4`;
-    const args = ['-i', workingBaseName];
+    const args = ['-i', sourceName];
     if (trimStart > 0) {
       args.push('-ss', trimStart.toFixed(3));
     }

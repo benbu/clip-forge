@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export function ResizablePanel({ 
-  id, 
-  children, 
-  defaultSize = 280, 
-  minSize = 200, 
+export function ResizablePanel({
+  id,
+  children,
+  defaultSize = 280,
+  minSize = 200,
   maxSize = 600,
   side = 'left',
   onResize,
@@ -84,6 +84,9 @@ export function ResizablePanel({
   const isHorizontal = side === 'left' || side === 'right';
   // Resize handle should appear BEFORE for 'top' and 'right', AFTER for 'left'
   const handleBefore = side === 'top' || side === 'right';
+  const primaryStyle = isHorizontal
+    ? { width: `${size}px` }
+    : { height: `${size}px`, width: '100%' };
 
   return (
     <>
@@ -106,14 +109,14 @@ export function ResizablePanel({
         </div>
       )}
       
-      <div 
+      <div
         ref={panelRef}
         className={`${className} overflow-hidden`}
         style={{
-          [isHorizontal ? 'width' : 'height']: `${size}px`,
+          ...primaryStyle,
           flexShrink: 0,
           display: 'flex',
-          flexDirection: isHorizontal ? 'column' : 'row'
+          flexDirection: 'column'
         }}
       >
         {children}

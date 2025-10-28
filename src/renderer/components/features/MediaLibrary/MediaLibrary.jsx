@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Grid, List } from 'lucide-react';
+import { Plus, Grid, List } from 'lucide-react';
 import { FileCard } from './FileCard';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { useMediaStore } from '@/store/mediaStore';
 import { importVideoFiles } from '@/services/mediaService';
 
@@ -10,7 +9,6 @@ import { importVideoFiles } from '@/services/mediaService';
 export function MediaLibrary() {
   const { files, selectedFile, removeFile, selectFile, addFiles } = useMediaStore();
   const [viewMode, setViewMode] = useState('grid');
-  const [searchQuery, setSearchQuery] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
   
@@ -74,9 +72,7 @@ export function MediaLibrary() {
     }
   };
   
-  const filteredFiles = displayFiles.filter(file =>
-    file.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFiles = displayFiles;
   
   return (
     <div className="h-full flex flex-col bg-zinc-900/40 rounded-lg border border-white/10">
@@ -98,17 +94,6 @@ export function MediaLibrary() {
             accept="video/*"
             onChange={handleFileInput}
             className="hidden"
-          />
-        </div>
-        
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-zinc-400" />
-          <Input
-            placeholder="Search media..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
           />
         </div>
         
