@@ -9,6 +9,16 @@ const {
 const path = require('path');
 const fs = require('fs').promises;
 
+// Mitigate Windows flicker/occlusion issues and allow optional GPU disable
+if (process.platform === 'win32') {
+  // Disables occlusion tracking which can cause black/flicker frames on some GPUs/drivers
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+}
+if (process.env.CLIPFORGE_DISABLE_GPU === '1') {
+  // For stubborn GPU/driver combos, allow opting out of hardware acceleration
+  app.disableHardwareAcceleration();
+}
+
 let mainWindow;
 const isDev = !app.isPackaged;
 
