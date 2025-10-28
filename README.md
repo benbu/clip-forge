@@ -48,6 +48,12 @@ This runs both the Vite dev server and Electron concurrently.
 - `npm run build:linux` - Build and package for Linux
 - `npm run dist` - Same as `build` - create distributable packages
 - `npm start` - Run built Electron app
+- `npm run test` - Run Vitest suite
+- `npm run test:e2e` - Run Playwright smoke tests (requires `npx playwright install` once)
+
+## Continuous Integration
+
+GitHub Actions workflow `.github/workflows/build.yml` runs unit tests, Playwright smoke tests, and platform packaging (`build:mac`, `build:win`, `build:linux`) across macOS, Windows, and Linux runners.
 
 ## Project Structure
 
@@ -86,6 +92,7 @@ See:
 - `docs/clipforge_mvp_tasklist.md` for full MVP implementation plan
 - `docs/clipforge_ui_setup_tasklist.md` for UI setup details
 - `PROGRESS.md` for detailed progress tracking
+- `docs/manual_regression_checklist.md` for QA scenarios
 
 ## Quick Test
 
@@ -103,4 +110,3 @@ The app will display:
 ## License
 
 ISC
-

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+        if: ${{ runner.os == 'Linux' }}
+
+      - name: Install Playwright browsers (non-Linux)
+        run: npx playwright install
+        if: ${{ runner.os != 'Linux' }}
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Run smoke tests
+        run: npm run test:e2e
+
+      - name: Build renderer bundle
+        run: npm run build:renderer
+
+      - name: Package application
+        run: |
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            npm run build:mac
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+            npm run build:win
+          else
+            npm run build:linux
+          fi
+        shell: bash
