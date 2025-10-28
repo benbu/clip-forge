@@ -2,6 +2,7 @@
  * Persistence Service - Handles saving and loading project state
  */
 
+import { Buffer } from 'buffer';
 import { useMediaStore } from '@/store/mediaStore';
 import { useTimelineStore } from '@/store/timelineStore';
 import { usePlayerStore } from '@/store/playerStore';
@@ -196,4 +197,3 @@ export class PersistenceService {
 }
 
 export const persistenceService = new PersistenceService();
-

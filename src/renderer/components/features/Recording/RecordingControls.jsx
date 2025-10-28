@@ -71,6 +71,37 @@ export function RecordingControls({ pushToast }) {
     recordingService.updateOverlay(overlay);
   }, [overlay, status]);
 
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.updateRecordingStatus) return;
+    api
+      .updateRecordingStatus({
+        state: status,
+        countdownSeconds,
+        elapsedSeconds,
+        isAudioMuted,
+        audioEnabled,
+        cameraEnabled,
+        overlayPosition: overlay?.position || null,
+      })
+      .catch(() => {});
+  }, [
+    status,
+    countdownSeconds,
+    elapsedSeconds,
+    isAudioMuted,
+    audioEnabled,
+    cameraEnabled,
+    overlay?.position,
+  ]);
+
+  useEffect(
+    () => () => {
+      window.electronAPI?.updateRecordingStatus?.({ state: 'idle' });
+    },
+    []
+  );
+
   const handleArmRecording = useCallback(
     async (config) => {
       if (isStarting) return;
@@ -118,6 +149,8 @@ export function RecordingControls({ pushToast }) {
   );
 
   const handleStop = useCallback(async () => {
+    const currentStatus = useRecordingStore.getState().status;
+    if (currentStatus === 'saving') return;
     const preStopState = useRecordingStore.getState();
     if (preStopState.cameraEnabled) {
       preStopState.recordOverlayChange(preStopState.overlay);
@@ -203,6 +236,31 @@ export function RecordingControls({ pushToast }) {
       resumeFromPause();
     }
   }, [markPaused, resumeFromPause, status]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onTrayRecordingCommand) return undefined;
+    const unsubscribe = window.electronAPI.onTrayRecordingCommand((command) => {
+      if (command === 'stop-recording') {
+        const current = useRecordingStore.getState().status;
+        if (['recording', 'paused', 'countdown', 'preparing'].includes(current)) {
+          handleStop();
+        }
+      } else if (command === 'pause-recording') {
+        if (useRecordingStore.getState().status === 'recording') {
+          handlePauseResume();
+        }
+      } else if (command === 'resume-recording') {
+        if (useRecordingStore.getState().status === 'paused') {
+          handlePauseResume();
+        }
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [handlePauseResume, handleStop]);
 
   const handleToggleMute = useCallback(() => {
     const nextMuted = !isAudioMuted;
