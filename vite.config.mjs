@@ -22,6 +22,10 @@ export default defineConfig({
     outDir: 'dist/renderer',
     emptyOutDir: true,
   },
+  assetsInclude: ['**/*.wasm'],
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/core', '@ffmpeg/util'],
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',

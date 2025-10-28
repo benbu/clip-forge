@@ -8,6 +8,9 @@
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
+import coreScriptURL from '@ffmpeg/core?url';
+import coreWasmURL from '@ffmpeg/core/wasm?url';
+import coreWorkerURL from '@ffmpeg/ffmpeg/worker?url';
 
 let ffmpeg;
 let loadPromise;
@@ -25,8 +28,23 @@ async function getFFmpeg() {
   }
 
   if (!loadPromise) {
-    loadPromise = ffmpeg
-      .load()
+    loadPromise = (async () => {
+      await ffmpeg.load({
+        coreURL: coreScriptURL,
+        wasmURL: coreWasmURL,
+        workerURL: coreWorkerURL,
+      });
+
+      ffmpeg.on('progress', ({ progress }) => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('ffmpeg-progress', { detail: { progress } })
+          );
+        }
+      });
+
+      return ffmpeg;
+    })()
       .then(() => ffmpeg)
       .catch((error) => {
         ffmpeg = undefined;
