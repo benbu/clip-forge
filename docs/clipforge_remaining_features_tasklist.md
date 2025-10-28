@@ -40,10 +40,10 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [ ] Establish resource guardrails (disk space warnings before export, RAM usage monitoring) to avoid exceeding the 1 GB memory target.
 
 ## 6. QA, Tooling, and Release Readiness
-- [ ] Stand up Vitest + React Testing Library for unit/integration coverage of state stores, timeline math, and recording utilities.
-- [ ] Script an end-to-end smoke test that automates import → edit → export using Playwright or Spectron in CI.
-- [ ] Flesh out the manual regression checklist covering recording permutations, multi-track editing, export presets, and packaging.
-- [ ] Update build pipelines for macOS and Windows installers, and add a Linux AppImage build leveraging the existing electron-builder setup.
+- [x] Stand up Vitest + React Testing Library for unit/integration coverage of state stores, timeline math, and recording utilities.
+- [x] Script an end-to-end smoke test that automates import → edit → export using Playwright or Spectron in CI.
+- [x] Flesh out the manual regression checklist covering recording permutations, multi-track editing, export presets, and packaging.
+- [x] Update build pipelines for macOS and Windows installers, and add a Linux AppImage build leveraging the existing electron-builder setup.
 - [ ] Produce an updated 3–5 minute demo video that walks through the post-MVP feature set for launch marketing.
 
 ## 7. Stretch Goals (From PRD §7)
@@ -53,4 +53,3 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [ ] Ship preset export templates for major platforms (YouTube 4K, TikTok 1080x1920@60fps, LinkedIn 1080p) with saved defaults.
 - [ ] Introduce a robust undo/redo stack for timeline, media library, and export configuration changes.
 - [ ] Broaden keyboard shortcut coverage (playback, insertion, tool switching) with an in-app shortcut reference panel.
-
