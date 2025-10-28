@@ -16,6 +16,9 @@ export async function importVideoFiles(files, options = {}) {
       // Extract metadata using HTML5 video element
       const metadata = await extractVideoMetadata(file);
       
+      // Generate thumbnail
+      const thumbnail = await generateVideoThumbnail(file);
+      
       // Create file object
       const fileObj = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -29,6 +32,7 @@ export async function importVideoFiles(files, options = {}) {
         width: metadata.width,
         height: metadata.height,
         resolution: `${metadata.width}x${metadata.height}`,
+        thumbnail: thumbnail, // Store thumbnail data URL
         originalFile: file, // Keep reference to File object for blob URL creation
         createdAt: new Date().toISOString(),
       };
@@ -51,6 +55,87 @@ export async function importVideoFiles(files, options = {}) {
   }
   
   return importedFiles;
+}
+
+/**
+ * Generate a thumbnail from a video file
+ * @param {File} file - Video file
+ * @param {number} timeOffset - Time in seconds to capture frame (default: 1)
+ * @returns {Promise<string>} Data URL of the thumbnail
+ */
+function generateVideoThumbnail(file, timeOffset = 1) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    video.preload = 'metadata';
+    video.muted = true;
+    video.crossOrigin = 'anonymous';
+    
+    let blobUrl = null;
+    
+    const cleanup = () => {
+      if (blobUrl) {
+        window.URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
+    };
+    
+    // Set timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve(null); // Return null if thumbnail generation fails
+    }, 10000);
+    
+    video.onloadedmetadata = () => {
+      try {
+        // Set canvas dimensions to video dimensions
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Seek to the specified time
+        video.currentTime = Math.min(timeOffset, video.duration * 0.1);
+      } catch (error) {
+        clearTimeout(timeout);
+        cleanup();
+        resolve(null);
+      }
+    };
+    
+    video.onseeked = () => {
+      try {
+        // Draw the current frame to canvas
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Convert to data URL
+        const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+        
+        clearTimeout(timeout);
+        cleanup();
+        resolve(dataURL);
+      } catch (error) {
+        clearTimeout(timeout);
+        cleanup();
+        resolve(null);
+      }
+    };
+    
+    video.onerror = (e) => {
+      clearTimeout(timeout);
+      cleanup();
+      resolve(null);
+    };
+    
+    try {
+      blobUrl = URL.createObjectURL(file);
+      video.src = blobUrl;
+    } catch (error) {
+      clearTimeout(timeout);
+      cleanup();
+      resolve(null);
+    }
+  });
 }
 
 /**
@@ -139,7 +224,7 @@ function formatFileSize(bytes) {
  * Format duration in seconds to MM:SS or HH:MM:SS format
  */
 function formatDuration(seconds) {
-  if (!seconds || isNaN(seconds)) return '0:00';
+  if (!seconds || isNaN(seconds) || !isFinite(seconds)) return '0:00';
   
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

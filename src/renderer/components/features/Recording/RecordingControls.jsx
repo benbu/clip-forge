@@ -5,6 +5,7 @@ import { useRecordingStore } from '@/store/recordingStore';
 import { useMediaStore } from '@/store/mediaStore';
 import { recordingService } from '@/services/recordingService';
 import { importVideoFiles } from '@/services/mediaService';
+import { formatDuration } from '@/lib/fileUtils';
 import { RecordingSetupModal, OVERLAY_POSITIONS } from './RecordingSetupModal';
 
 const COUNTDOWN_SECONDS = 3;
@@ -163,8 +164,12 @@ export function RecordingControls({ pushToast }) {
 
       const savedOutputs = await recordingService.persistRecordingOutputs(recordingResult);
 
-      const playbackResult = recordingResult.preview || recordingResult.base;
-      const playbackInfo = savedOutputs.preview || savedOutputs.base;
+      const playbackResult = recordingResult.base || recordingResult.preview;
+      const playbackInfo = savedOutputs.base || savedOutputs.preview;
+
+      if (!recordingResult.base && recordingResult.preview) {
+        console.warn('Falling back to preview recording for playback; audio may be missing');
+      }
 
       if (!playbackResult || !playbackInfo) {
         throw new Error('Recording data unavailable');
@@ -207,9 +212,12 @@ export function RecordingControls({ pushToast }) {
       };
 
       const imported = await importVideoFiles([playbackFile], {
-        enrichFile: () => ({
+        enrichFile: ({ base }) => ({
           sourceType: 'screen-recording',
           recordingMeta,
+          // Override with known accurate values
+          duration: formatDuration(snapshot.elapsedSeconds),
+          durationSeconds: snapshot.elapsedSeconds,
         }),
       });
 

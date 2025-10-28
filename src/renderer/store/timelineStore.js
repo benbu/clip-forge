@@ -10,6 +10,7 @@ export const useTimelineStore = create((set) => ({
   zoom: 1, // 0.1x to 10x
   snapToGrid: true,
   selectedClipId: null,
+  isScrubbing: false,
   
   // Actions
   addClip: (clip) => set((state) => {
@@ -85,6 +86,8 @@ export const useTimelineStore = create((set) => ({
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
 
   setSelectedClip: (clipId) => set({ selectedClipId: clipId }),
+
+  setIsScrubbing: (isScrubbing) => set({ isScrubbing }),
 
   // Trim clip
   trimClip: (clipId, start, end) =>

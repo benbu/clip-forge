@@ -13,12 +13,17 @@ import { shortcuts } from '@/lib/keyboardShortcuts';
 
 export function VideoPlayer() {
   const videoRef = useRef(null);
+  const rafRef = useRef(null);
+  const lastUpdateTimeRef = useRef(0);
+  const seekRafRef = useRef(null);
   const selectedFile = useMediaStore((state) => state.selectedFile);
   const selectedFileData = useMediaStore((state) => state.selectedFileData);
   const setFileBlobUrl = useMediaStore((state) => state.setFileBlobUrl);
   const selectFile = useMediaStore((state) => state.selectFile);
+  const fileBlobUrls = useMediaStore((state) => state.fileBlobUrls);
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const setPlayheadPosition = useTimelineStore((state) => state.setPlayheadPosition);
+  const isScrubbing = useTimelineStore((state) => state.isScrubbing);
   const clips = useTimelineStore((state) => state.clips);
   const { 
     isPlaying, 
@@ -26,36 +31,47 @@ export function VideoPlayer() {
     duration, 
     volume, 
     playbackRate,
+    pause,
     togglePlayPause,
     seek,
     setDuration,
     setVolume,
     setPlaybackRate,
-    toggleFullscreen
+    toggleFullscreen,
+    playbackSource
   } = usePlayerStore();
   
   const [showControls, setShowControls] = useState(true);
   const [videoSrc, setVideoSrc] = useState(null);
 
-  // Auto-select clip media when the playhead moves across the timeline
+  // Auto-select clip media when the playhead moves across the timeline (timeline mode only)
   useEffect(() => {
     if (!clips?.length) return;
+    if (playbackSource !== 'timeline') return;
 
     const clipAtPlayhead = clips.find(
       (clip) => playheadPosition >= clip.start && playheadPosition <= clip.end
     );
 
+    // Only switch if we're actually on a different clip's media
     if (clipAtPlayhead?.mediaFileId && clipAtPlayhead.mediaFileId !== selectedFile) {
       selectFile(clipAtPlayhead.mediaFileId);
     }
-  }, [clips, playheadPosition, selectFile, selectedFile]);
+  }, [clips, playheadPosition, selectFile, selectedFile, playbackSource]);
   
   // Load selected file's video source
   useEffect(() => {
     if (selectedFileData?.originalFile) {
-      const blobUrl = URL.createObjectURL(selectedFileData.originalFile);
-      setVideoSrc(blobUrl);
-      setFileBlobUrl(selectedFileData.id, blobUrl);
+      // Check if blob URL already exists in store
+      const existingBlobUrl = fileBlobUrls[selectedFileData.id];
+      
+      if (existingBlobUrl) {
+        setVideoSrc(existingBlobUrl);
+      } else {
+        const blobUrl = URL.createObjectURL(selectedFileData.originalFile);
+        setVideoSrc(blobUrl);
+        setFileBlobUrl(selectedFileData.id, blobUrl);
+      }
       
       return () => {
         // Cleanup will be handled by the store
@@ -63,13 +79,15 @@ export function VideoPlayer() {
     } else {
       setVideoSrc(null);
     }
-  }, [selectedFileData, setFileBlobUrl]);
+  }, [selectedFileData, setFileBlobUrl, fileBlobUrls]);
   
   // Update video element when state changes
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     
+    video.defaultMuted = false;
+    video.muted = false;
     video.volume = volume / 100;
     video.playbackRate = playbackRate;
   }, [volume, playbackRate]);
@@ -86,26 +104,73 @@ export function VideoPlayer() {
     }
   }, [isPlaying]);
   
-  // Sync playhead position
+  // Sync playhead position with RAF-based seeking (timeline mode only)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    if (playbackSource !== 'timeline') return;
+    // While playing and not scrubbing, the video element is the source of truth.
+    if (isPlaying && !isScrubbing) return;
 
     if (Math.abs(video.currentTime - playheadPosition) < 0.01) return;
     
-    video.currentTime = playheadPosition;
-    seek(playheadPosition);
-  }, [playheadPosition, seek]);
+    // Cancel any pending seek
+    if (seekRafRef.current) {
+      cancelAnimationFrame(seekRafRef.current);
+    }
+    
+    // Schedule seek for next frame
+    seekRafRef.current = requestAnimationFrame(() => {
+      video.currentTime = playheadPosition;
+      seek(playheadPosition);
+    });
+  }, [playheadPosition, seek, playbackSource, isPlaying, isScrubbing]);
   
-  // Update currentTime from video element
+  // Update currentTime from video element with throttling
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     
     const handleTimeUpdate = () => {
       const current = video.currentTime;
-      seek(current);
-      setPlayheadPosition(current);
+      const now = performance.now();
+      
+      // Throttle to ~60fps (16.67ms between updates)
+      if (now - lastUpdateTimeRef.current >= 16.67) {
+        lastUpdateTimeRef.current = now;
+        
+        // Cancel any pending RAF
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+        }
+        
+        rafRef.current = requestAnimationFrame(() => {
+          seek(current);
+          if (playbackSource === 'timeline') {
+            setPlayheadPosition(current);
+            // Stop playback at end of timeline clips
+            if (clips && clips.length > 0) {
+              const timelineEnd = Math.max(
+                ...clips.map((clip) =>
+                  (clip.end != null)
+                    ? clip.end
+                    : (clip.start ?? 0) + (clip.duration ?? 0)
+                )
+              );
+              if (Number.isFinite(timelineEnd) && current >= (timelineEnd - 0.01)) {
+                // Clamp to end and pause
+                video.pause();
+                pause();
+                const endTime = Math.max(0, timelineEnd);
+                if (Math.abs(current - endTime) > 0.01) {
+                  seek(endTime);
+                  setPlayheadPosition(endTime);
+                }
+              }
+            }
+          }
+        });
+      }
     };
     
     const handleLoadedMetadata = () => {
@@ -118,21 +183,33 @@ export function VideoPlayer() {
     return () => {
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      
+      // Clean up RAF on unmount
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      if (seekRafRef.current) {
+        cancelAnimationFrame(seekRafRef.current);
+      }
     };
-  }, [seek, setPlayheadPosition, setDuration]);
+  }, [seek, setPlayheadPosition, setDuration, playbackSource]);
   
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   
   const handleSeek = (value) => {
     const newTime = (value / 100) * duration;
     seek(newTime);
-    setPlayheadPosition(newTime);
+    if (playbackSource === 'timeline') {
+      setPlayheadPosition(newTime);
+    }
   };
   
   const skip = (seconds) => {
     const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
     seek(newTime);
-    setPlayheadPosition(newTime);
+    if (playbackSource === 'timeline') {
+      setPlayheadPosition(newTime);
+    }
   };
 
   // Keyboard shortcuts
@@ -154,12 +231,17 @@ export function VideoPlayer() {
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={() => setShowControls(false)}
     >
+      {/* Playback Source Title */}
+      <div className="absolute top-0 left-0 m-2 px-2 py-1 text-[10px] uppercase rounded bg-black/60 text-zinc-300">
+        {playbackSource === 'timeline' ? 'Timeline' : `Preview: ${selectedFileData?.name ?? ''}`}
+      </div>
       {/* Video Element */}
       <video
         ref={videoRef}
         src={videoSrc || undefined}
         className="w-full h-full object-contain"
-        preload="metadata"
+        preload="auto"
+        playsInline
       >
         Your browser does not support the video tag.
       </video>

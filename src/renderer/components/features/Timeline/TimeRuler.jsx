@@ -1,10 +1,11 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
+import { TRACK_LABEL_WIDTH_PX } from '@/lib/timelineConstants';
 
 export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration }) {
   const { setPlayheadPosition } = useTimelineStore();
-  const trackLabelWidth = 160; // Width of the track label area (w-40 = 160px)
+  const trackLabelWidth = TRACK_LABEL_WIDTH_PX;
   const duration = visibleDuration || (endTime - startTime);
   
   // Calculate the appropriate label interval based on screen space

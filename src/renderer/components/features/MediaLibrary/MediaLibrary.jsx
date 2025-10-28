@@ -4,6 +4,7 @@ import { FileCard } from './FileCard';
 import { Button } from '@/components/ui/Button';
 import { useMediaStore } from '@/store/mediaStore';
 import { importVideoFiles } from '@/services/mediaService';
+import { usePlayerStore } from '@/store/playerStore';
 
 
 export function MediaLibrary() {
@@ -21,6 +22,9 @@ export function MediaLibrary() {
   
   const handleSelectFile = (fileId) => {
     selectFile(fileId);
+    // Enter preview mode when selecting media from the library
+    const { setPlaybackSource } = usePlayerStore.getState();
+    setPlaybackSource('preview');
   };
   
   const handleFileInput = async (e) => {

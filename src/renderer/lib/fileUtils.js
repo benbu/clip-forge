@@ -17,7 +17,7 @@ export function formatFileSize(bytes) {
  * Format duration to MM:SS or HH:MM:SS
  */
 export function formatDuration(seconds) {
-  if (!seconds || isNaN(seconds)) return '0:00';
+  if (!seconds || isNaN(seconds) || !isFinite(seconds)) return '0:00';
   
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

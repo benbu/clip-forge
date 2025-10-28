@@ -12,6 +12,7 @@ export const usePlayerStore = create((set) => ({
   playbackRate: 1, // 0.25x to 2x
   isMuted: false,
   isFullscreen: false,
+  playbackSource: 'timeline', // 'timeline' | 'preview'
   
   // Actions
   play: () => set({ isPlaying: true }),
@@ -31,5 +32,8 @@ export const usePlayerStore = create((set) => ({
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 
   toggleFullscreen: () => set((state) => ({ isFullscreen: !state.isFullscreen })),
+
+  // Playback source mode
+  setPlaybackSource: (source) => set({ playbackSource: source }),
 }));
 

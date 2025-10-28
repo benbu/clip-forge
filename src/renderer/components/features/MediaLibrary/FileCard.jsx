@@ -37,9 +37,17 @@ export function FileCard({ file, isSelected, onSelect, onDelete }) {
     >
       {/* Thumbnail */}
       <div className="relative aspect-video bg-gradient-to-br from-indigo-600/20 to-purple-600/20">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-4xl">🎬</span>
-        </div>
+        {file.thumbnail ? (
+          <img 
+            src={file.thumbnail} 
+            alt={file.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-4xl">🎬</span>
+          </div>
+        )}
         
         {/* Duration Badge */}
         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-xs text-white">

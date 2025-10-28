@@ -6,6 +6,8 @@ import { Track } from './Track';
 import { Playhead } from './Playhead';
 import { TimeRuler } from './TimeRuler';
 import { useTimelineStore } from '@/store/timelineStore';
+import { usePlayerStore } from '@/store/playerStore';
+import { useMediaStore } from '@/store/mediaStore';
 
 export function Timeline() {
   const { 
@@ -26,10 +28,17 @@ export function Timeline() {
   const [zoomInput, setZoomInput] = useState(zoom.toFixed(2));
   const zoomInputRef = useRef(null);
   const timelineRef = useRef(null);
+  const setPlaybackSource = usePlayerStore((s) => s.setPlaybackSource);
+  const clearSelection = useMediaStore((s) => s.clearSelection);
 
   const focusTimeline = useCallback(() => {
     timelineRef.current?.focus();
   }, []);
+
+  const switchToTimeline = useCallback(() => {
+    setPlaybackSource('timeline');
+    clearSelection();
+  }, [setPlaybackSource, clearSelection]);
   
   const handleZoomInputChange = (value) => {
     setZoomInput(value);
@@ -157,7 +166,7 @@ export function Timeline() {
           }
         }
       }}
-      onMouseDown={focusTimeline}
+      onMouseDown={(e) => { focusTimeline(); switchToTimeline(); }}
     >
       {/* Timeline Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/80">

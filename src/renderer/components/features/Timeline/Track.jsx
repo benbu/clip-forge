@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { Clip } from './Clip';
 import { cn } from '@/lib/utils';
+import { TRACK_LABEL_WIDTH_PX } from '@/lib/timelineConstants';
 
 export function Track({ track, clips, zoom, visibleDuration, onSelectClip }) {
   const [isVisible, setIsVisible] = useState(true);
@@ -14,7 +15,7 @@ export function Track({ track, clips, zoom, visibleDuration, onSelectClip }) {
     <div className="h-24 border-b border-white/10 hover:bg-zinc-800/30 transition-colors">
       <div className="flex h-full">
         {/* Track Label */}
-        <div className="w-40 border-r border-white/10 bg-zinc-800/50 p-2 flex flex-col gap-2">
+        <div className="border-r border-white/10 bg-zinc-800/50 p-2 flex flex-col gap-2" style={{ width: TRACK_LABEL_WIDTH_PX }}>
           <div className="text-xs font-medium text-zinc-300">{track.name}</div>
           
           <div className="flex items-center gap-1">
