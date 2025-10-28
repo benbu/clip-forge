@@ -9,8 +9,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev2": "concurrently -k -n VITE,ELECTRON -c blue,green \"npm:dev:vite2\" \"npm:dev:electron2\"",
     "dev:vite": "vite",
+    "dev:vite2": "vite --port 5175",
     "dev:electron": "cross-env VITE_DEV_SERVER_URL=http://localhost:5173 wait-on http://localhost:5173 && electron .",
+    "dev:electron2": "cross-env VITE_DEV_SERVER_URL=http://localhost:5175 wait-on http://localhost:5175 && electron .",
     "build:renderer": "vite build",
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win",

@@ -80,27 +80,70 @@ async function safeDelete(instance, path) {
 }
 
 async function runCommand(instance, args) {
-  const resultCode = await instance.exec(args);
-  if (resultCode !== 0) {
-    throw new Error(`FFmpeg exited with code ${resultCode} (${args.join(' ')})`);
+  const logs = [];
+  const listener = ({ type, message }) => {
+    logs.push(`[${type}] ${message}`);
+  };
+  instance.on('log', listener);
+  try {
+    const resultCode = await instance.exec(args);
+    if (resultCode !== 0) {
+      const logTail = logs.slice(-30).join('\n');
+      console.error('FFmpeg command failed', args.join(' '), '\nLogs:\n', logTail);
+      const error = new Error(`FFmpeg exited with code ${resultCode} (${args.join(' ')})`);
+      error.logs = logTail;
+      throw error;
+    }
+  } finally {
+    if (typeof instance.off === 'function') {
+      instance.off('log', listener);
+    }
   }
 }
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const sanitizeCoordinates = (coords, fallback = null) => {
+  if (!coords || typeof coords !== 'object') return fallback;
+  const xPercent = Number.isFinite(coords.xPercent) ? clamp(coords.xPercent, 0, 1) : null;
+  const yPercent = Number.isFinite(coords.yPercent) ? clamp(coords.yPercent, 0, 1) : null;
+  if (xPercent === null || yPercent === null) return fallback;
+  return { xPercent, yPercent };
+};
+
 const sanitizeOverlay = (overlay, defaults = {}) => {
+  const base = defaults || {};
   if (!overlay || typeof overlay !== 'object') {
-    return { ...defaults };
+    return {
+      position: base.position || 'top-right',
+      size: clamp(base.size ?? 0.22, 0.1, 0.6),
+      borderRadius: clamp(base.borderRadius ?? 12, 0, 64),
+      coordinates:
+        base.position === 'custom'
+          ? sanitizeCoordinates(base.coordinates, { xPercent: 0.5, yPercent: 0.5 })
+          : null,
+    };
   }
-  const position = overlay.position || defaults.position || 'top-right';
+
+  const positionRaw = overlay.position || base.position || 'top-right';
+  const allowedPositions = ['top-right', 'top-left', 'bottom-right', 'bottom-left', 'center', 'custom'];
+  const position = allowedPositions.includes(positionRaw) ? positionRaw : 'top-right';
   const size = clamp(
-    Number.isFinite(overlay.size) ? overlay.size : defaults.size ?? 0.22,
+    Number.isFinite(overlay.size) ? overlay.size : base.size ?? 0.22,
     0.1,
     0.6
   );
-  const borderRadius =
-    Number.isFinite(overlay.borderRadius) ? overlay.borderRadius : defaults.borderRadius ?? 12;
-  return { position, size, borderRadius };
+  const borderRadius = clamp(
+    Number.isFinite(overlay.borderRadius) ? overlay.borderRadius : base.borderRadius ?? 12,
+    0,
+    64
+  );
+  const coordinates =
+    position === 'custom'
+      ? sanitizeCoordinates(overlay.coordinates, sanitizeCoordinates(base.coordinates, { xPercent: 0.5, yPercent: 0.5 }))
+      : null;
+
+  return { position, size, borderRadius, coordinates };
 };
 
 const normalizeOverlayKeyframes = (keyframes, duration, defaults = {}) => {
@@ -155,7 +198,7 @@ const normalizeOverlayKeyframes = (keyframes, duration, defaults = {}) => {
 };
 
 const computeOverlayPosition = (
-  position,
+  overlay,
   overlayWidth,
   overlayHeight,
   videoWidth,
@@ -163,16 +206,24 @@ const computeOverlayPosition = (
   margin = 24
 ) => {
   const safeMargin = Number.isFinite(margin) ? margin : 24;
-  const maxX = Math.max(0, videoWidth - overlayWidth - safeMargin);
-  const maxY = Math.max(0, videoHeight - overlayHeight - safeMargin);
+  const safeWidth = Math.max(0, videoWidth - overlayWidth - safeMargin * 2);
+  const safeHeight = Math.max(0, videoHeight - overlayHeight - safeMargin * 2);
 
-  switch (position) {
+  if (overlay?.position === 'custom' && overlay.coordinates) {
+    const xPercent = clamp(overlay.coordinates.xPercent ?? 0.5, 0, 1);
+    const yPercent = clamp(overlay.coordinates.yPercent ?? 0.5, 0, 1);
+    const x = safeWidth > 0 ? safeMargin + xPercent * safeWidth : safeMargin;
+    const y = safeHeight > 0 ? safeMargin + yPercent * safeHeight : safeMargin;
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+
+  switch (overlay?.position) {
     case 'top-left':
       return { x: safeMargin, y: safeMargin };
     case 'bottom-left':
-      return { x: safeMargin, y: maxY };
+      return { x: safeMargin, y: safeMargin + safeHeight };
     case 'bottom-right':
-      return { x: maxX, y: maxY };
+      return { x: safeMargin + safeWidth, y: safeMargin + safeHeight };
     case 'center':
       return {
         x: Math.max(0, Math.round((videoWidth - overlayWidth) / 2)),
@@ -180,7 +231,7 @@ const computeOverlayPosition = (
       };
     case 'top-right':
     default:
-      return { x: maxX, y: safeMargin };
+      return { x: safeMargin + safeWidth, y: safeMargin };
   }
 };
 
@@ -274,7 +325,7 @@ async function composeClipWithOverlay(instance, context) {
     drawnHeight = clamp(drawnHeight, 80, maxOverlayHeight);
 
     const { x, y } = computeOverlayPosition(
-      overlay.position || 'top-right',
+      overlay,
       drawnWidth,
       drawnHeight,
       baseWidth,
@@ -364,9 +415,29 @@ async function composeClipWithOverlay(instance, context) {
   return compositeName;
 }
 
+const inferExtension = (value, fallback = '.mp4') => {
+  if (!value) return fallback;
+  let name = '';
+  if (typeof value === 'string') {
+    name = value;
+  } else if (typeof value === 'object') {
+    name = value.path || value.name || '';
+  }
+  if (typeof name === 'string') {
+    const lower = name.toLowerCase();
+    if (lower.endsWith('.webm')) return '.webm';
+    if (lower.endsWith('.mov')) return '.mov';
+    if (lower.endsWith('.mkv')) return '.mkv';
+    if (lower.endsWith('.avi')) return '.avi';
+    if (lower.endsWith('.mp4')) return '.mp4';
+  }
+  return fallback;
+};
+
 async function prepareClip(instance, clip, index) {
   const cleanup = new Set();
-  const sourceName = `clip_src_${index}${clip.source && typeof clip.source === 'string' && clip.source.endsWith('.webm') ? '.webm' : '.mp4'}`;
+  const sourceExt = inferExtension(clip.source ?? clip.path ?? clip.name, '.webm');
+  const sourceName = `clip_src_${index}${sourceExt}`;
   await writeInputFile(instance, sourceName, clip.source ?? clip.path);
   cleanup.add(sourceName);
 
@@ -381,14 +452,24 @@ async function prepareClip(instance, clip, index) {
 
   if (requiresTrim) {
     const trimmedName = `clip_trim_${index}.mp4`;
-    const args = ['-i', sourceName];
+    const args = [];
     if (trimStart > 0) {
       args.push('-ss', trimStart.toFixed(3));
     }
+    args.push('-i', sourceName);
     if (inferredDuration > 0) {
       args.push('-t', inferredDuration.toFixed(3));
     }
-    args.push('-c', 'copy', trimmedName);
+    args.push(
+      '-c:v', 'libx264',
+      '-preset', 'fast',
+      '-crf', '18',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-movflags', 'faststart',
+      trimmedName,
+    );
     await runCommand(instance, args);
     cleanup.add(trimmedName);
     workingBaseName = trimmedName;
@@ -405,21 +486,32 @@ async function prepareClip(instance, clip, index) {
     return preparedName;
   }
 
-  const cameraInputName = `clip_camera_${index}.webm`;
+  const cameraExt = inferExtension(clip.overlaySource ?? clip.previewSource ?? clip.cameraPath, '.webm');
+  const cameraInputName = `clip_camera_${index}${cameraExt}`;
   await writeInputFile(instance, cameraInputName, clip.overlaySource);
   cleanup.add(cameraInputName);
 
   let workingCameraName = cameraInputName;
   if (trimStart > 0 || (clip.sourceOut != null && Number.isFinite(clip.sourceOut))) {
     const trimmedCamera = `clip_camera_trim_${index}.mp4`;
-    const args = ['-i', cameraInputName];
+    const args = [];
     if (trimStart > 0) {
       args.push('-ss', trimStart.toFixed(3));
     }
+    args.push('-i', cameraInputName);
     if (inferredDuration > 0) {
       args.push('-t', inferredDuration.toFixed(3));
     }
-    args.push('-c', 'copy', trimmedCamera);
+    args.push(
+      '-c:v', 'libx264',
+      '-preset', 'fast',
+      '-crf', '18',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-movflags', 'faststart',
+      trimmedCamera,
+    );
     await runCommand(instance, args);
     cleanup.add(trimmedCamera);
     workingCameraName = trimmedCamera;

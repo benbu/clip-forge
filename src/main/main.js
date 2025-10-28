@@ -200,7 +200,9 @@ const createMainWindow = () => {
     },
   });
 
-  const devServerUrl = process.env.VITE_DEV_SERVER_URL || (isDev ? 'http://localhost:5173' : null);
+  port = (isDev && process.platform == 'linux') ? '5175' : '5173';
+
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL || (isDev ? 'http://localhost:' + port : null);
   if (devServerUrl) {
     if (isDev) {
       console.log(`Loading renderer from ${devServerUrl}`);
