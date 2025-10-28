@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Switch } from '../../ui/Switch';
 import { Slider } from '../../ui/Slider';
-import { Code, HardDrive, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export function AdvancedSettings() {
-  const [autosave, setAutosave] = useState(5);
-  const [maxUndo, setMaxUndo] = useState(50);
-  const [maxCacheSize, setMaxCacheSize] = useState(5);
+  const autosaveMinutes = useSettingsStore((s) => s.autosaveMinutes);
+  const setAutosaveMinutes = useSettingsStore((s) => s.setAutosaveMinutes);
+  const autosaveEnabled = useSettingsStore((s) => s.autosaveEnabled);
+  const setAutosaveEnabled = useSettingsStore((s) => s.setAutosaveEnabled);
+  const backupRetention = useSettingsStore((s) => s.backupRetention);
+  const setBackupRetention = useSettingsStore((s) => s.setBackupRetention);
 
   return (
     <div className="space-y-4">
@@ -15,21 +18,21 @@ export function AdvancedSettings() {
       <div>
         <h4 className="text-xs font-medium text-zinc-300 mb-2">App Behavior</h4>
         <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-300">Enable Auto-save</span>
+            <Switch checked={autosaveEnabled} onChange={setAutosaveEnabled} />
+          </div>
           <div>
-            <label className="text-xs text-zinc-400 mb-2 block">Auto-save Interval: {autosave} minutes</label>
-            <Slider value={[autosave]} min={1} max={60} step={1} onValueChange={([val]) => setAutosave(val)} />
+            <label className="text-xs text-zinc-400 mb-2 block">Auto-save Interval: {autosaveMinutes} minutes</label>
+            <Slider value={[autosaveMinutes]} min={1} max={60} step={1} onValueChange={([val]) => setAutosaveMinutes(val)} />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Max Undo History: {maxUndo}</label>
             <Slider value={[maxUndo]} min={5} max={100} step={5} onValueChange={([val]) => setMaxUndo(val)} />
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-300">Enable Analytics</span>
-            <Switch checked={false} onChange={() => {}} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-300">Crash Reporting</span>
-            <Switch checked={true} onChange={() => {}} />
+          <div>
+            <label className="text-xs text-zinc-400 mb-2 block">Backup Retention: {backupRetention} versions</label>
+            <Slider value={[backupRetention]} min={1} max={50} step={1} onValueChange={([val]) => setBackupRetention(val)} />
           </div>
         </div>
       </div>

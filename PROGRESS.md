@@ -206,3 +206,16 @@ Delivered:
 
 Notes:
 - New IPC: `fs:exists`, `dialog:openVideo` exposed via preload as `fileExists`, `openVideoDialog`
+
+## Update (Epic 5: Performance, Observability, Reliability) — October 2025
+
+Delivered:
+- Performance overlay (toggle: Ctrl+Shift+P) with FPS and JS heap metrics
+- Global renderer error/crash reporter writing to `userData/logs/clipforge.log`
+- FFmpeg error monitoring with scoped structured logs (`scope: 'ffmpeg'`)
+- Memory guardrail in export flow (warn >900 MB, stop >1.1 GB)
+
+Remaining:
+- Profiling runs on large timelines and targeted optimizations
+- Configurable autosave with versioned backups and recovery prompts
+- Disk space guardrails prior to long exports

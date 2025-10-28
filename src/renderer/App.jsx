@@ -8,6 +8,10 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { exportService } from '@/services/exportService';
 import { useTimelineStore } from '@/store/timelineStore';
 import { RecordingControls } from '@/components/features/Recording/RecordingControls';
+import { PerfOverlay } from '@/components/ui/PerfOverlay';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { usePerfStore } from '@/store/perfStore';
+import { persistenceService } from '@/services/persistenceService';
 
 export default function App() {
 
@@ -15,6 +19,25 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const clipCount = useTimelineStore((state) => state.clips.length);
+  const togglePerf = usePerfStore((s) => s.toggleOverlay);
+
+  useKeyboardShortcuts({
+    PERF_TOGGLE: togglePerf,
+  }, [togglePerf]);
+
+  useEffect(() => {
+    // Initialize autosave session and prompt recovery if needed
+    try {
+      persistenceService.startSession();
+      persistenceService.startAutoSave();
+      // Prompt recovery (non-blocking)
+      setTimeout(() => {
+        persistenceService.maybeOfferRecovery().catch(() => {});
+      }, 0);
+    } catch (e) {
+      console.warn('Persistence init failed', e);
+    }
+  }, []);
 
   useEffect(() => {
     exportService.onProgress((percent) => setExportProgress(percent));
@@ -58,6 +81,19 @@ export default function App() {
     if (isExporting) return;
 
     try {
+      // Memory guardrail (soft warn at 900MB, hard stop at 1100MB)
+      const mem = performance && performance.memory ? performance.memory : null;
+      if (mem && typeof mem.usedJSHeapSize === 'number') {
+        const usedMB = mem.usedJSHeapSize / (1024 * 1024);
+        if (usedMB > 1100) {
+          pushToast('Memory usage too high (>1.1 GB). Close other apps or restart before export.', 'error', 8000);
+          return;
+        }
+        if (usedMB > 900) {
+          pushToast('High memory usage detected (>900 MB). Export may be slow or fail.', 'warning', 6000);
+        }
+      }
+
       setIsExporting(true);
       setExportProgress(0);
 
@@ -118,6 +154,7 @@ export default function App() {
       </header>
 
       <main className="flex flex-col flex-1 min-h-0 gap-1 p-2">
+        <PerfOverlay />
         <section className="flex gap-1 flex-1 min-h-0">
           <ResizablePanel
             id="media-library"

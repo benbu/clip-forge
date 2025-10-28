@@ -9,6 +9,7 @@ Focus for next work session:
 1. Timeline & Editing upgrades (multi-tracks, overlays, waveforms, ripple edits)
 2. Recording enhancements (source picker, PiP controls, audio routing)
 3. Export polish (queue, presets, progress/ETA)
+4. Performance, Observability & Reliability (Epic 5): overlay, logging, guardrails, autosave/backups
 
 ## Recent Changes
 
@@ -18,6 +19,7 @@ Focus for next work session:
 - Async thumbnail caching + background generation
 - Missing-media detection + Relink workflow (secure IPC)
 - Bulk actions: multi-select, batch delete, add to timeline
+ - Performance overlay (FPS + JS heap), crash reporting, FFmpeg monitoring, export memory guardrail
 
 ### Git Status
 - Modified: `docs/clipforge_remaining_features_tasklist.md`
@@ -29,7 +31,7 @@ Focus for next work session:
 ## Current Work Session
 
 ### Today's Priority
-Document Epic 2 delivery and prepare tasks for Timeline & Editing upgrades.
+Document Epic 5 progress; implement autosave with versioned backups and recovery prompt.
 
 ### Active Decisions
 1. Keep IPC surface minimal and validated; new channels `fs:exists` and `dialog:openVideo` restricted via preload.

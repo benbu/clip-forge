@@ -29,6 +29,12 @@ Desktop video editor built with Electron, React, and Tailwind CSS.
 - Missing-media detection with Relink flow (secure IPC)
 - Bulk actions: multi-select, delete, add to timeline
 
+### Performance, Observability & Reliability (Epic 5)
+- Performance overlay: toggle with Ctrl+Shift+P (Cmd+Shift+P on macOS); shows FPS and JS heap usage in the bottom-right.
+- Global error/crash reporter: renderer errors and unhandled rejections are logged to `userData/logs/clipforge.log`.
+- FFmpeg monitoring: structured logs with scope `ffmpeg` for init/trim/merge/export/thumbnail failures.
+- Memory guardrails: pre-export warnings above ~900 MB and hard stop above ~1.1 GB to avoid crashes.
+
 ✅ **Ready to build and distribute!** Package the app with `npm run build`
 
 ## Development

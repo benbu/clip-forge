@@ -6,6 +6,7 @@ import { Buffer } from 'buffer';
 import { useMediaStore } from '@/store/mediaStore';
 import { DEFAULT_TRACKS, useTimelineStore } from '@/store/timelineStore';
 import { usePlayerStore } from '@/store/playerStore';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export class PersistenceService {
   constructor() {
@@ -13,6 +14,8 @@ export class PersistenceService {
     this.autoSaveInterval = null;
     this.autoSaveEnabled = true;
     this.autoSaveDelay = 30000; // 30 seconds
+    this.backupKey = 'clipforge-backups';
+    this.sessionFlagKey = 'clipforge-session-open';
   }
   
   /**
@@ -50,6 +53,9 @@ export class PersistenceService {
       
       // Save to localStorage
       localStorage.setItem(this.storageKey, JSON.stringify(projectData));
+
+      // Add versioned backup entry
+      this.addBackup(projectData);
       
       // Also save to file system if Electron API available
       if (window.electronAPI?.saveProject) {
@@ -64,6 +70,88 @@ export class PersistenceService {
       console.error('Error saving project:', error);
       throw error;
     }
+  }
+
+  getBackups() {
+    try { return JSON.parse(localStorage.getItem(this.backupKey) || '[]'); }
+    catch { return []; }
+  }
+
+  setBackups(list) {
+    try { localStorage.setItem(this.backupKey, JSON.stringify(list)); }
+    catch {}
+  }
+
+  addBackup(snapshot) {
+    const retention = useSettingsStore.getState().backupRetention || 10;
+    const list = this.getBackups();
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      data: snapshot,
+    };
+    list.unshift(entry);
+    while (list.length > retention) list.pop();
+    this.setBackups(list);
+    return entry.id;
+  }
+
+  startSession() {
+    window.addEventListener('beforeunload', () => {
+      try { localStorage.removeItem(this.sessionFlagKey); } catch {}
+    });
+    try { localStorage.setItem(this.sessionFlagKey, '1'); } catch {}
+  }
+
+  hadCrashLastRun() {
+    try { return localStorage.getItem(this.sessionFlagKey) === '1'; }
+    catch { return false; }
+  }
+
+  getLatestBackup() {
+    const list = this.getBackups();
+    return list.length ? list[0] : null;
+  }
+
+  async restoreBackup(entry) {
+    if (!entry?.data) throw new Error('Invalid backup');
+    const projectData = entry.data;
+    useMediaStore.setState({
+      files: projectData.media?.files || [],
+      selectedFile: projectData.media?.selectedFile || null,
+    });
+    useTimelineStore.setState({
+      tracks:
+        projectData.timeline?.tracks?.length
+          ? projectData.timeline.tracks
+          : DEFAULT_TRACKS.map((track) => ({ ...track })),
+      clips: projectData.timeline?.clips || [],
+      playheadPosition: projectData.timeline?.playheadPosition ?? 0,
+      zoom: projectData.timeline?.zoom ?? 1,
+      snapToGrid: projectData.timeline?.snapToGrid ?? true,
+      selectedClipId: projectData.timeline?.selectedClipId ?? null,
+    });
+    usePlayerStore.setState({
+      currentTime: projectData.player?.currentTime || 0,
+      duration: projectData.player?.duration || 0,
+      volume: projectData.player?.volume || 75,
+      playbackRate: projectData.player?.playbackRate || 1,
+    });
+    return true;
+  }
+
+  async maybeOfferRecovery(promptFn = null) {
+    if (!this.hadCrashLastRun()) return false;
+    const latest = this.getLatestBackup();
+    if (!latest) return false;
+    const proceed = typeof promptFn === 'function'
+      ? await Promise.resolve(promptFn(latest))
+      : window.confirm('ClipForge did not close cleanly last time. Restore the last autosave?');
+    if (proceed) {
+      await this.restoreBackup(latest);
+      return true;
+    }
+    return false;
   }
   
   /**
@@ -139,13 +227,15 @@ export class PersistenceService {
    * Start auto-save interval
    */
   startAutoSave() {
-    this.stopAutoSave(); // Clear any existing interval
-    
+    this.stopAutoSave();
+    const { autosaveEnabled, autosaveMinutes } = useSettingsStore.getState();
+    if (!autosaveEnabled) return;
+    const delayMs = Math.max(1, autosaveMinutes) * 60 * 1000;
     this.autoSaveInterval = setInterval(() => {
       this.saveProject().catch(err => {
         console.error('Auto-save failed:', err);
       });
-    }, this.autoSaveDelay);
+    }, delayMs);
   }
   
   /**

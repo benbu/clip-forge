@@ -3,6 +3,7 @@
 ## Current Status: 🟢 Post-MVP — Epic 2 Complete
 
 **Overall Progress**: ~98% Complete
+**Epic 5**: Performance overlay + logging delivered; autosave/backups/disk checks pending
 
 ## What Works
 

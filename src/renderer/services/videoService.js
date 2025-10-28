@@ -23,6 +23,7 @@ export async function initVideoService() {
     return { success: true, module: ffmpegWorker };
   } catch (error) {
     console.error('Failed to initialize video service:', error);
+    try { await window?.electronAPI?.logMessage?.({ level: 'error', scope: 'ffmpeg', message: 'init video service failed', stack: error?.stack || String(error) }); } catch(_) {}
     return { success: false, error };
   }
 }
@@ -53,6 +54,7 @@ export async function trimClip(filePath, startTime, endTime) {
     return outputData;
   } catch (error) {
     console.error('Failed to trim video:', error);
+    try { await window?.electronAPI?.logMessage?.({ level: 'error', scope: 'ffmpeg', message: 'trim clip failed', stack: error?.stack || String(error) }); } catch(_) {}
     throw error;
   }
 }
@@ -69,6 +71,7 @@ export async function mergeClips(clips) {
     return outputData;
   } catch (error) {
     console.error('Failed to merge clips:', error);
+    try { await window?.electronAPI?.logMessage?.({ level: 'error', scope: 'ffmpeg', message: 'merge clips failed', stack: error?.stack || String(error) }); } catch(_) {}
     throw error;
   }
 }
@@ -91,6 +94,7 @@ export async function exportVideo(filePath, options = {}) {
     return outputData;
   } catch (error) {
     console.error('Failed to export video:', error);
+    try { await window?.electronAPI?.logMessage?.({ level: 'error', scope: 'ffmpeg', message: 'export video failed', stack: error?.stack || String(error) }); } catch(_) {}
     throw error;
   }
 }
@@ -111,6 +115,7 @@ export async function generateThumbnail(filePath, time = 1) {
     return url;
   } catch (error) {
     console.error('Failed to generate thumbnail:', error);
+    try { await window?.electronAPI?.logMessage?.({ level: 'error', scope: 'ffmpeg', message: 'generate thumbnail failed', stack: error?.stack || String(error) }); } catch(_) {}
     throw error;
   }
 }

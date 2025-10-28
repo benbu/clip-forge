@@ -18,6 +18,7 @@ export const shortcuts = {
   ZOOM_OUT: 'Ctrl+Minus',
   EXPORT: 'Ctrl+E',
   IMPORT: 'Ctrl+I',
+  PERF_TOGGLE: 'Ctrl+Shift+P',
 };
 
 // Parse keyboard event to string representation
@@ -79,5 +80,6 @@ export const shortcutDescriptions = {
   [shortcuts.DELETE]: 'Delete selected',
   [shortcuts.EXPORT]: 'Export video',
   [shortcuts.IMPORT]: 'Import video',
+  [shortcuts.PERF_TOGGLE]: 'Toggle performance overlay',
 };
 
