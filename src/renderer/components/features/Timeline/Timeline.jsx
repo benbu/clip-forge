@@ -12,19 +12,20 @@ import { useMediaStore } from '@/store/mediaStore';
 export function Timeline() {
   const { 
     clips, 
-    playheadPosition, 
-    zoom, 
+    playheadPosition,
+    zoom,
     snapToGrid,
-    setPlayheadPosition,
     setZoom,
     toggleSnapToGrid,
     splitClipAtPlayhead,
     addClip,
     selectedClipId,
     removeClip,
+    tracks,
   } = useTimelineStore();
   
   const [isDragOver, setIsDragOver] = useState(false);
+  const [hoveredTrackId, setHoveredTrackId] = useState(null);
   const [zoomInput, setZoomInput] = useState(zoom.toFixed(2));
   const zoomInputRef = useRef(null);
   const timelineRef = useRef(null);
@@ -67,12 +68,7 @@ export function Timeline() {
   useEffect(() => {
     setZoomInput(zoom.toFixed(2));
   }, [zoom]);
-  
-  const tracks = [
-    { id: 0, name: 'Video Track 1' },
-    { id: 1, name: 'Overlay' },
-  ];
-  
+
   const handleSplitClick = () => {
     // Find clip at playhead and split it
     const clipAtPlayhead = clips.find(clip => 
@@ -84,24 +80,14 @@ export function Timeline() {
     }
   };
   
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-    e.dataTransfer.dropEffect = 'copy';
-  };
-  
-  const handleDragLeave = (e) => {
-    e.preventDefault();
+  const handleDropOnTrack = (event, trackId) => {
+    event.preventDefault();
     setIsDragOver(false);
-  };
-  
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    
+    setHoveredTrackId(null);
+
     try {
       // Check if there's any data to parse
-      const dataString = e.dataTransfer.getData('application/json');
+      const dataString = event.dataTransfer.getData('application/json');
       if (!dataString || dataString.trim() === '') {
         console.warn('No data available in drop event');
         return;
@@ -112,6 +98,22 @@ export function Timeline() {
       if (data && data.type === 'media-file' && data.file) {
         // Convert media file to timeline clip
         const duration = parseDurationToSeconds(data.file.duration) || data.file.durationSeconds || 0;
+        const mediaCategory = deriveMediaCategory(data.file);
+        const targetTrack = tracks.find((track) => track.id === trackId);
+        if (targetTrack?.isLocked) {
+          console.warn(`Track "${targetTrack.name}" is locked; drop cancelled.`);
+          return;
+        }
+        const isTrackCompatible =
+          mediaCategory === 'audio'
+            ? targetTrack?.type === 'audio'
+            : targetTrack?.type !== 'audio';
+        const fallbackTrack = tracks.find((track) =>
+          mediaCategory === 'audio' ? track.type === 'audio' : track.type !== 'audio'
+        );
+        const resolvedTrackId = isTrackCompatible
+          ? trackId
+          : fallbackTrack?.id ?? trackId;
         
         const newClip = {
           id: `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -120,7 +122,8 @@ export function Timeline() {
           start: playheadPosition,
           end: playheadPosition + duration,
           duration,
-          track: 0, // Default to first track
+          trackId: resolvedTrackId,
+          mediaType: mediaCategory,
           startTrim: 0,
           endTrim: duration,
           volume: 100,
@@ -133,6 +136,24 @@ export function Timeline() {
     } catch (error) {
       console.error('Failed to handle drop:', error);
     }
+  };
+
+  const handleTimelineDragEnter = (event) => {
+    event.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleTimelineDragLeave = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setIsDragOver(false);
+      setHoveredTrackId(null);
+    }
+  };
+
+  const handleTimelineDrop = (event) => {
+    event.preventDefault();
+    setIsDragOver(false);
+    setHoveredTrackId(null);
   };
   
   // Helper function to parse duration string to seconds
@@ -150,20 +171,48 @@ export function Timeline() {
     
     return 0;
   };
+
+  const deriveMediaCategory = (file) => {
+    const typeHint = (
+      file?.mediaType ||
+      file?.type ||
+      file?.mimeType ||
+      ''
+    )
+      .toString()
+      .toLowerCase();
+
+    if (typeHint.includes('audio')) {
+      return 'audio';
+    }
+
+    // If the file explicitly flags itself as audio via category property
+    if (file?.category === 'audio' || file?.kind === 'audio') {
+      return 'audio';
+    }
+
+    return 'video';
+  };
   
   return (
     <div 
       ref={timelineRef}
       className={`h-full flex flex-col bg-zinc-900/60 border border-white/10 rounded-lg overflow-hidden ${isDragOver ? 'ring-2 ring-indigo-500 bg-indigo-900/20' : ''}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragEnter={handleTimelineDragEnter}
+      onDragLeave={handleTimelineDragLeave}
+      onDrop={handleTimelineDrop}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Backspace' || e.key === 'Delete') {
-          if (selectedClipId) {
-            removeClip(selectedClipId);
+          if (!selectedClipId) return;
+          const targetClip = clips.find((clip) => clip.id === selectedClipId);
+          if (!targetClip) return;
+          const track = tracks.find((t) => t.id === targetClip.trackId);
+          if (track?.isLocked) {
+            console.warn(`Track "${track.name}" is locked; clip deletion cancelled.`);
+            return;
           }
+          removeClip(selectedClipId);
         }
       }}
       onMouseDown={(e) => { focusTimeline(); switchToTimeline(); }}
@@ -229,7 +278,7 @@ export function Timeline() {
         {(() => {
           const MAX_DURATION = 120;
           const visibleDuration = MAX_DURATION / zoom;
-          
+
           return (
             <>
               {/* Time Ruler */}
@@ -246,10 +295,22 @@ export function Timeline() {
                     <Track
                       key={track.id}
                       track={track}
-                      clips={clips.filter(c => c.track === track.id)}
+                      clips={clips.filter(c => c.trackId === track.id)}
                       zoom={zoom}
                       visibleDuration={visibleDuration}
                       onSelectClip={focusTimeline}
+                      onDragOverTrack={(event) => {
+                        event.preventDefault();
+                        setHoveredTrackId(track.id);
+                        event.dataTransfer.dropEffect = 'copy';
+                      }}
+                      onDragLeaveTrack={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) {
+                          setHoveredTrackId((prev) => (prev === track.id ? null : prev));
+                        }
+                      }}
+                      onDropClip={(event) => handleDropOnTrack(event, track.id)}
+                      isActiveDropTarget={hoveredTrackId === track.id}
                     />
                   ))}
                 </div>

@@ -4,7 +4,7 @@
 
 import { Buffer } from 'buffer';
 import { useMediaStore } from '@/store/mediaStore';
-import { useTimelineStore } from '@/store/timelineStore';
+import { DEFAULT_TRACKS, useTimelineStore } from '@/store/timelineStore';
 import { usePlayerStore } from '@/store/playerStore';
 
 export class PersistenceService {
@@ -33,10 +33,12 @@ export class PersistenceService {
           selectedFile: mediaState.selectedFile,
         },
         timeline: {
+          tracks: timelineState.tracks,
           clips: timelineState.clips,
           playheadPosition: timelineState.playheadPosition,
           zoom: timelineState.zoom,
           snapToGrid: timelineState.snapToGrid,
+          selectedClipId: timelineState.selectedClipId,
         },
         player: {
           currentTime: playerState.currentTime,
@@ -95,10 +97,15 @@ export class PersistenceService {
       });
       
       useTimelineStore.setState({
+        tracks:
+          projectData.timeline?.tracks?.length
+            ? projectData.timeline.tracks
+            : DEFAULT_TRACKS.map((track) => ({ ...track })),
         clips: projectData.timeline?.clips || [],
-        playheadPosition: projectData.timeline?.playheadPosition || 0,
-        zoom: projectData.timeline?.zoom || 1,
-        snapToGrid: projectData.timeline?.snapToGrid || true,
+        playheadPosition: projectData.timeline?.playheadPosition ?? 0,
+        zoom: projectData.timeline?.zoom ?? 1,
+        snapToGrid: projectData.timeline?.snapToGrid ?? true,
+        selectedClipId: projectData.timeline?.selectedClipId ?? null,
       });
       
       usePlayerStore.setState({
@@ -156,7 +163,15 @@ export class PersistenceService {
    */
   clearProject() {
     useMediaStore.setState({ files: [], selectedFile: null });
-    useTimelineStore.setState({ clips: [], playheadPosition: 0 });
+    useTimelineStore.setState({
+      tracks: DEFAULT_TRACKS.map((track) => ({ ...track })),
+      clips: [],
+      playheadPosition: 0,
+      zoom: 1,
+      snapToGrid: true,
+      selectedClipId: null,
+      isScrubbing: false,
+    });
     localStorage.removeItem(this.storageKey);
   }
   

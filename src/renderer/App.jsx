@@ -10,6 +10,8 @@ import { useTimelineStore } from '@/store/timelineStore';
 import { RecordingControls } from '@/components/features/Recording/RecordingControls';
 
 export default function App() {
+  console.log('App render invoked');
+
   const [toasts, setToasts] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -17,6 +19,10 @@ export default function App() {
 
   useEffect(() => {
     exportService.onProgress((percent) => setExportProgress(percent));
+  }, []);
+
+  useEffect(() => {
+    console.log('App mounted - banner?', document.querySelector('[role="banner"]'));
   }, []);
 
   const removeToast = useCallback(
@@ -98,7 +104,10 @@ export default function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {/* Top Bar */}
-      <header className="h-12 border-b border-white/10 bg-zinc-900/60 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/50 flex items-center px-3 select-none flex-shrink-0">
+      <header
+        role="banner"
+        className="h-12 border-b border-white/10 bg-zinc-900/60 backdrop-blur supports-[backdrop-filter]:bg-zinc-900/50 flex items-center px-3 select-none flex-shrink-0"
+      >
         <div className="font-semibold tracking-wide">ClipForge</div>
         <div className="ml-auto flex items-center gap-3 text-sm">
           <button className="px-3 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 transition">Import</button>
