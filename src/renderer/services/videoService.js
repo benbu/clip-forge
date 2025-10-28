@@ -82,6 +82,7 @@ export async function exportVideo(filePath, options = {}) {
   try {
     const outputData = await ffmpegWorker.exportVideo(filePath, 'exported.mp4', {
       resolution: options.resolution || '1920x1080',
+      fps: options.fps ?? 60,
       bitrate: options.bitrate || '8000k',
       codec: options.codec || 'libx264',
       crf: options.crf || '23',

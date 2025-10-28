@@ -354,6 +354,19 @@ ipcMain.handle('fs:exists', async (_event, filePath) => {
   }
 });
 
+ipcMain.handle('fs:readFile', async (_event, filePath) => {
+  try {
+    if (!filePath || typeof filePath !== 'string') {
+      throw new Error('Invalid file path');
+    }
+    const data = await fs.readFile(filePath);
+    return new Uint8Array(data);
+  } catch (error) {
+    console.error('Error reading file:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle('dialog:openVideo', async () => {
   try {
     const result = await dialog.showOpenDialog({

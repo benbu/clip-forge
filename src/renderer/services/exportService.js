@@ -3,6 +3,7 @@
  */
 
 import { mergeClips, initVideoService } from './videoService';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useTimelineStore } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
 
@@ -155,8 +156,19 @@ export class ExportService {
       
       this.updateProgress(70);
       
-      // Apply export settings (resolution, quality, etc.)
-      const exportedBuffer = await this.applyExportSettings(mergedBuffer, options);
+      // Apply export settings: merge modal options with Settings defaults
+      const settings = useSettingsStore.getState()?.export || {};
+      const effectiveOptions = {
+        resolution: options?.resolution ?? settings.resolution ?? null,
+        fps: options?.fps ?? settings.fps ?? null,
+        bitrate: options?.bitrate ?? settings.bitrate,
+        codec: options?.codec ?? 'libx264',
+        crf: options?.crf ?? settings.crf,
+        preset: options?.preset ?? settings.preset,
+        format: options?.format ?? settings.format,
+      };
+
+      const exportedBuffer = await this.applyExportSettings(mergedBuffer, effectiveOptions);
       
       this.updateProgress(90);
       
@@ -191,14 +203,32 @@ export class ExportService {
    * Apply export settings to video
    */
   async applyExportSettings(buffer, options) {
-    // For now, return buffer as-is
-    // In full implementation, this would use FFmpeg to:
-    // - Resize to target resolution
-    // - Adjust bitrate
-    // - Apply codec settings
-    // - Add filters/effects
-    
-    return buffer;
+    try {
+      const initResult = await initVideoService();
+      const ffmpegReady = initResult === true || initResult?.success === true;
+      if (!ffmpegReady) {
+        return buffer;
+      }
+
+      const module = (initResult?.module) || (await ensureInitialized?.());
+      const worker = module || (await import('../../media/ffmpegWorker.js'));
+
+      const exported = await worker.exportVideo(buffer, 'final-export.mp4', {
+        resolution: options?.resolution || '1920x1080',
+        fps: options?.fps ?? 60,
+        bitrate: options?.bitrate || '8000k',
+        codec: options?.codec || 'libx264',
+        crf: options?.crf || 23,
+        preset: options?.preset || 'veryfast',
+      });
+
+      return exported instanceof Uint8Array
+        ? exported
+        : new Uint8Array(await exported.arrayBuffer());
+    } catch (_) {
+      // Fall back to original buffer if export transform fails
+      return buffer;
+    }
   }
   
   /**

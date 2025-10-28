@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('env', {
 contextBridge.exposeInMainWorld('electronAPI', {
   getScreenSources: () => ipcRenderer.invoke('getScreenSources'),
   saveFile: (filePath, buffer) => ipcRenderer.invoke('saveFile', filePath, buffer),
+  readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
   logMessage: (payload) => ipcRenderer.invoke('logMessage', payload),
   chooseExportPath: (suggestedName) => ipcRenderer.invoke('chooseExportPath', suggestedName),
   prepareRecordingPath: (options) => ipcRenderer.invoke('prepareRecordingPath', options),

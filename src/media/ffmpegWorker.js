@@ -62,7 +62,50 @@ async function writeInputFile(instance, name, source) {
     throw new Error(`Missing media source for ${name}`);
   }
 
-  const data = await fetchFile(source);
+  // Fast-path: typed array or ArrayBuffer provided
+  if (source instanceof Uint8Array) {
+    if (source.length === 0) throw new Error(`Unable to load media data for ${name}`);
+    await instance.writeFile(name, source);
+    return name;
+  }
+  if (source instanceof ArrayBuffer) {
+    const bytes = new Uint8Array(source);
+    if (bytes.length === 0) throw new Error(`Unable to load media data for ${name}`);
+    await instance.writeFile(name, bytes);
+    return name;
+  }
+
+  const isAbsolutePath = (value) => {
+    if (typeof value !== 'string') return false;
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('blob:')) {
+      return false;
+    }
+    // Windows absolute (C:\ or \\server\share)
+    if (/^[a-zA-Z]:\\/.test(value) || value.startsWith('\\\\')) return true;
+    // POSIX absolute (/path)
+    if (value.startsWith('/')) return true;
+    return false;
+  };
+
+  let data;
+
+  // Prefer IPC read for absolute filesystem paths (renderer cannot fetch these)
+  if (isAbsolutePath(source) && typeof window !== 'undefined' && window.electronAPI?.readFile) {
+    try {
+      const bytes = await window.electronAPI.readFile(source);
+      data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    } catch (err) {
+      // Fall back to fetchFile to surface a meaningful error if applicable
+      try {
+        data = await fetchFile(source);
+      } catch (_) {
+        throw err;
+      }
+    }
+  } else {
+    data = await fetchFile(source);
+  }
+
   if (!data || data.length === 0) {
     throw new Error(`Unable to load media data for ${name}`);
   }
@@ -242,9 +285,9 @@ async function transcodeClip(instance, inputName, outputName) {
     '-c:v',
     'libx264',
     '-preset',
-    'fast',
+    'ultrafast',
     '-crf',
-    '18',
+    '23',
     '-pix_fmt',
     'yuv420p',
     '-c:a',
@@ -362,9 +405,9 @@ async function composeClipWithOverlay(instance, context) {
       '-c:v',
       'libx264',
       '-preset',
-      'fast',
+      'ultrafast',
       '-crf',
-      '18',
+      '23',
       '-pix_fmt',
       'yuv420p',
       '-c:a',
@@ -460,17 +503,35 @@ async function prepareClip(instance, clip, index) {
     if (inferredDuration > 0) {
       args.push('-t', inferredDuration.toFixed(3));
     }
-    args.push(
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '18',
-      '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac',
-      '-b:a', '192k',
-      '-movflags', 'faststart',
-      trimmedName,
-    );
-    await runCommand(instance, args);
+    // Prefer stream copy for MP4 to speed up trimming; fallback to re-encode if it fails
+    const tryCopy = async () => {
+      const copyArgs = [...args, '-c', 'copy', '-movflags', 'faststart', trimmedName];
+      await runCommand(instance, copyArgs);
+    };
+    const reencode = async () => {
+      const encArgs = [
+        ...args,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-movflags', 'faststart',
+        trimmedName,
+      ];
+      await runCommand(instance, encArgs);
+    };
+
+    try {
+      if (sourceExt === '.mp4') {
+        await tryCopy();
+      } else {
+        await reencode();
+      }
+    } catch (_) {
+      await reencode();
+    }
     cleanup.add(trimmedName);
     workingBaseName = trimmedName;
   }
@@ -479,7 +540,21 @@ async function prepareClip(instance, clip, index) {
 
   if (!hasOverlaySource) {
     const preparedName = `prepared_clip_${index}.mp4`;
-    await transcodeClip(instance, workingBaseName, preparedName);
+    if (!requiresTrim && sourceExt === '.mp4') {
+      // Fast path: no overlay, no trim, mp4 input → stream copy
+      try {
+        await runCommand(instance, [
+          '-i', workingBaseName,
+          '-c', 'copy',
+          '-movflags', 'faststart',
+          preparedName,
+        ]);
+      } catch (_) {
+        await transcodeClip(instance, workingBaseName, preparedName);
+      }
+    } else {
+      await transcodeClip(instance, workingBaseName, preparedName);
+    }
     for (const name of cleanup) {
       await safeDelete(instance, name);
     }
@@ -502,17 +577,33 @@ async function prepareClip(instance, clip, index) {
     if (inferredDuration > 0) {
       args.push('-t', inferredDuration.toFixed(3));
     }
-    args.push(
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '18',
-      '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac',
-      '-b:a', '192k',
-      '-movflags', 'faststart',
-      trimmedCamera,
-    );
-    await runCommand(instance, args);
+    const tryCopy = async () => {
+      const copyArgs = [...args, '-c', 'copy', '-movflags', 'faststart', trimmedCamera];
+      await runCommand(instance, copyArgs);
+    };
+    const reencode = async () => {
+      const encArgs = [
+        ...args,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-movflags', 'faststart',
+        trimmedCamera,
+      ];
+      await runCommand(instance, encArgs);
+    };
+    try {
+      if (cameraExt === '.mp4') {
+        await tryCopy();
+      } else {
+        await reencode();
+      }
+    } catch (_) {
+      await reencode();
+    }
     cleanup.add(trimmedCamera);
     workingCameraName = trimmedCamera;
   }
@@ -628,8 +719,15 @@ export async function exportVideo(source, outputName = 'exported.mp4', options =
 
     const command = ['-i', inputName];
 
+    const videoFilters = [];
     if (options.resolution) {
-      command.push('-vf', `scale=${options.resolution}`);
+      videoFilters.push(`scale=${options.resolution}`);
+    }
+    if (options.fps) {
+      videoFilters.push(`fps=${options.fps}`);
+    }
+    if (videoFilters.length > 0) {
+      command.push('-vf', videoFilters.join(','));
     }
 
     if (options.bitrate) {

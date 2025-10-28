@@ -1,16 +1,27 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { X, Download, Monitor, FileVideo } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { exportService } from '@/services/exportService';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useTimelineStore } from '@/store/timelineStore';
 import { formatFileSize, formatDuration } from '@/lib/fileUtils';
 
 export function ExportModal({ isOpen, onClose }) {
   const { clips } = useTimelineStore();
-  const [quality, setQuality] = useState('1080p');
-  const [format, setFormat] = useState('mp4');
+  const settings = useSettingsStore((s) => s.export);
+
+  const defaultQuality = useMemo(() => {
+    const res = settings?.resolution;
+    if (res === '3840x2160') return '4k';
+    if (res === '1920x1080' || res == null) return '1080p';
+    if (res === '1280x720') return '720p';
+    return 'source';
+  }, [settings?.resolution]);
+
+  const [quality, setQuality] = useState(defaultQuality);
+  const [format, setFormat] = useState(settings?.format || 'mp4');
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
