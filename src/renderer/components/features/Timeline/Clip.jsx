@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
 
@@ -18,8 +18,18 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
     snapToGrid,
     selectedClipId,
     setSelectedClip,
+    moveClipToTrack,
+    tracks,
   } = useTimelineStore();
   const isSelected = selectedClipId === clip.id;
+  const clipMediaType = clip.mediaType ?? 'video';
+  const eligibleTracks = tracks.filter((track) =>
+    clipMediaType === 'audio' ? track.type === 'audio' : track.type !== 'audio'
+  );
+  const parentTrack = tracks.find((track) => track.id === clip.trackId);
+  const isTrackLocked = parentTrack?.isLocked ?? false;
+  const isTrackVisible = parentTrack?.isVisible ?? true;
+  const isTrackMuted = parentTrack?.isMuted ?? false;
   
   // Calculate position and width based on visible duration (affected by zoom)
   const MAX_DURATION = visibleDuration || 120;
@@ -82,6 +92,9 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
     
     setSelectedClip(clip.id);
     onSelect?.(clip);
+    if (isTrackLocked) {
+      return;
+    }
     setIsDragging(true);
     
     const startX = e.clientX;
@@ -131,6 +144,9 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
     e.stopPropagation();
     setSelectedClip(clip.id);
     onSelect?.(clip);
+    if (isTrackLocked) {
+      return;
+    }
     
     const startX = e.clientX;
     const startStart = clip.start;
@@ -170,7 +186,17 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   const handleDelete = (e) => {
     e.stopPropagation();
     onSelect?.(clip);
+    if (isTrackLocked) {
+      return;
+    }
     removeClip(clip.id);
+  };
+
+  const handleTrackChange = (event) => {
+    event.stopPropagation();
+    const targetTrackId = event.target.value;
+    if (!targetTrackId || targetTrackId === clip.trackId) return;
+    moveClipToTrack(clip.id, targetTrackId);
   };
   
   return (
@@ -188,13 +214,16 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
       <div
         ref={clipRef}
         className={cn(
-          'absolute top-2 bottom-2 rounded-md border-2 cursor-move transition-all group',
+          'absolute top-2 bottom-2 rounded-md border-2 transition-all group',
           'bg-gradient-to-r from-blue-600/80 to-purple-600/80',
           isSelected && 'ring-2 ring-indigo-400 border-indigo-400 z-10',
           !isSelected && 'border-transparent',
           isHovered && 'shadow-lg',
           isDragging && 'scale-105 z-20',
-          snapGuide && 'ring-1 ring-yellow-400'
+          snapGuide && 'ring-1 ring-yellow-400',
+          isTrackLocked ? 'cursor-not-allowed opacity-70 border-dashed border-indigo-400/60' : 'cursor-move',
+          !isTrackVisible && 'opacity-40',
+          clipMediaType === 'audio' && isTrackMuted && 'opacity-70'
         )}
         style={{
           left: `${left}%`,
@@ -218,6 +247,22 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
         <div className="absolute left-12 top-1 right-1 text-xs text-white font-medium truncate">
           {clip.name}
         </div>
+
+        {eligibleTracks.length > 0 && (
+          <select
+            className="absolute top-2 right-2 text-[10px] uppercase tracking-wide bg-black/50 text-white border border-white/20 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            value={clip.trackId}
+            onChange={handleTrackChange}
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {eligibleTracks.map((trackOption) => (
+              <option key={trackOption.id} value={trackOption.id}>
+                {trackOption.name}
+              </option>
+            ))}
+          </select>
+        )}
         
         {/* Trim Handles */}
         {(isSelected || isHovered) && (
