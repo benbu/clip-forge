@@ -2,6 +2,8 @@
  * Recording Service - Manages capture streams, preview compositing, and persistence.
  */
 
+import { Buffer } from 'buffer';
+
 const VIDEO_MIME = 'video/webm;codecs=vp9,opus';
 const DEFAULT_VIDEO_BITRATE = 3000000; // 3 Mbps
 const DEFAULT_OVERLAY = {

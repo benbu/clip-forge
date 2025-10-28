@@ -365,7 +365,7 @@ async function composeClipWithOverlay(instance, context) {
 }
 
 async function prepareClip(instance, clip, index) {
-  const baseInputName = `clip_base_${index}.dat`;
+  const baseInputName = `clip_base_${index}.webm`;
   await writeInputFile(instance, baseInputName, clip.source ?? clip.path);
 
   const hasOverlaySource = Boolean(clip.overlaySource);
@@ -377,7 +377,7 @@ async function prepareClip(instance, clip, index) {
     return preparedName;
   }
 
-  const cameraInputName = `clip_camera_${index}.dat`;
+  const cameraInputName = `clip_camera_${index}.webm`;
   await writeInputFile(instance, cameraInputName, clip.overlaySource);
 
   try {
