@@ -22,7 +22,7 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [x] Enable overlay layers for PiP clips with transform handles (position, scale) that feed into export compositing.
 - [ ] Render audio waveforms for timeline clips using precomputed peak data and allow per-clip gain adjustments.
 - [x] Add track-level controls: lock, mute/solo, visibility toggles, and adjustable track heights.
-- [ ] Implement ripple editing and intelligent gap handling when clips are trimmed or removed.
+- [x] Implement ripple editing and intelligent gap handling when clips are trimmed or removed.
 - [ ] Improve timeline zooming with mousewheel + modifier shortcuts and a minimap for quick navigation.
 
 ## 4. Export & Delivery Improvements

@@ -13,6 +13,45 @@ const withDefaultTrackState = (track, index = 0) => ({
   height: track.height ?? 1,
 });
 
+const resolveClipEnd = (clip) => {
+  if (clip?.end != null) return clip.end;
+  const duration = clip?.duration ?? 0;
+  return (clip?.start ?? 0) + duration;
+};
+
+const rippleShiftClips = (clips, trackId, pivotTime, delta) => {
+  if (!trackId || !delta) return clips;
+  const shift = Number(delta);
+  if (!Number.isFinite(shift) || shift === 0) return clips;
+
+  return clips.map((clip) => {
+    if (clip.trackId !== trackId) {
+      return clip;
+    }
+    if ((clip.start ?? 0) < pivotTime) {
+      return clip;
+    }
+
+    const nextStart = Math.max(0, (clip.start ?? 0) - shift);
+    let nextEnd = clip.end != null ? clip.end - shift : clip.end;
+    if (nextEnd != null && nextEnd < nextStart) {
+      nextEnd = nextStart;
+    }
+
+    const nextDuration =
+      clip.duration != null
+        ? Math.max(0, nextEnd != null ? nextEnd - nextStart : clip.duration)
+        : clip.duration;
+
+    return {
+      ...clip,
+      start: nextStart,
+      end: nextEnd != null ? nextEnd : undefined,
+      duration: nextDuration,
+    };
+  });
+};
+
 export const DEFAULT_TRACKS = [
   withDefaultTrackState({ id: 'video-1', type: 'video', name: 'Video Track 1', order: 0 }, 0),
   withDefaultTrackState({ id: 'overlay-1', type: 'overlay', name: 'Overlay Track', order: 1 }, 1),
@@ -357,10 +396,16 @@ export const useTimelineStore = create((set, get) => ({
         return state;
       }
 
+      const clipEnd = resolveClipEnd(targetClip);
+      const clipDuration = Math.max(0, clipEnd - (targetClip.start ?? 0));
       const remaining = state.clips.filter((c) => c.id !== clipId);
+      const adjusted =
+        clipDuration > 0
+          ? rippleShiftClips(remaining, targetClip.trackId, clipEnd, clipDuration)
+          : remaining;
       const nextSelected =
         state.selectedClipId === clipId ? null : state.selectedClipId;
-      return { clips: remaining, selectedClipId: nextSelected };
+      return { clips: adjusted, selectedClipId: nextSelected };
     }),
 
   reorderClips: (clipId, newPosition, trackId) =>
@@ -415,8 +460,12 @@ export const useTimelineStore = create((set, get) => ({
 
   // Trim clip
   trimClip: (clipId, start, end) =>
-    set((state) => ({
-      clips: state.clips.map((clip) => {
+    set((state) => {
+      let rippleDelta = 0;
+      let pivotTime = 0;
+      let targetTrackId = null;
+
+      const nextClips = state.clips.map((clip) => {
         if (clip.id !== clipId) return clip;
 
         const track = state.tracks.find((t) => t.id === clip.trackId);
@@ -426,22 +475,33 @@ export const useTimelineStore = create((set, get) => ({
 
         const prevSourceIn = clip.sourceIn ?? 0;
         const prevStart = clip.start ?? 0;
-        const prevEnd = clip.end ?? prevStart;
-        const deltaLeft = start - prevStart;
-        const duration = Math.max(0, end - start);
-        const newSourceIn = Math.max(0, prevSourceIn + deltaLeft);
+        const prevEnd = resolveClipEnd(clip);
+        const clampedStart = Math.max(0, start);
+        const clampedEnd = Math.max(clampedStart, end);
+        const duration = Math.max(0, clampedEnd - clampedStart);
+        const newSourceIn = Math.max(0, prevSourceIn + (clampedStart - prevStart));
         const newSourceOut = newSourceIn + duration;
+
+        rippleDelta = prevEnd - clampedEnd;
+        pivotTime = prevEnd;
+        targetTrackId = clip.trackId;
 
         return {
           ...clip,
-          start,
-          end,
+          start: clampedStart,
+          end: clampedEnd,
           duration,
           sourceIn: newSourceIn,
           sourceOut: newSourceOut,
         };
-      }),
-    })),
+      });
+
+      const adjustedClips = rippleDelta
+        ? rippleShiftClips(nextClips, targetTrackId, pivotTime, rippleDelta)
+        : nextClips;
+
+      return { clips: adjustedClips };
+    }),
 
   // Split clip at current playhead
   splitClipAtPlayhead: (clipId) => set((state) => {

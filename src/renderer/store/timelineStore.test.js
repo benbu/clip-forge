@@ -163,4 +163,47 @@ describe('timelineStore', () => {
     expect(stored?.volume).toBe(200);
     expect(stored?.waveform).toEqual(waveform);
   });
+
+  it('ripples subsequent clips when a clip is removed', () => {
+    const first = { id: 'clip-one', start: 0, end: 2, duration: 2 };
+    const second = { id: 'clip-two', start: 2, end: 5, duration: 3 };
+    getState().addClip(first);
+    getState().addClip(second);
+
+    getState().removeClip('clip-one');
+    const updated = getState().clips.find((c) => c.id === 'clip-two');
+
+    expect(updated?.start).toBe(0);
+    expect(updated?.end).toBe(3);
+  });
+
+  it('ripples timeline when trimming the end of a clip', () => {
+    const first = { id: 'clip-a', start: 0, end: 4, duration: 4 };
+    const second = { id: 'clip-b', start: 4, end: 6, duration: 2 };
+    getState().addClip(first);
+    getState().addClip(second);
+
+    getState().trimClip('clip-a', 0, 2);
+    const shorter = getState().clips.find((c) => c.id === 'clip-a');
+    const shifted = getState().clips.find((c) => c.id === 'clip-b');
+
+    expect(shorter?.end).toBe(2);
+    expect(shifted?.start).toBe(2);
+    expect(shifted?.end).toBe(4);
+  });
+
+  it('pushes downstream clips when a trim extends the timeline', () => {
+    const first = { id: 'clip-ext', start: 0, end: 2, duration: 2 };
+    const second = { id: 'clip-follow', start: 2, end: 4, duration: 2 };
+    getState().addClip(first);
+    getState().addClip(second);
+
+    getState().trimClip('clip-ext', 0, 3);
+    const extended = getState().clips.find((c) => c.id === 'clip-ext');
+    const pushed = getState().clips.find((c) => c.id === 'clip-follow');
+
+    expect(extended?.end).toBe(3);
+    expect(pushed?.start).toBe(3);
+    expect(pushed?.end).toBe(5);
+  });
 });
