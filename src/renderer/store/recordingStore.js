@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 const OVERLAY_PREF_KEY = 'clipforge:recordingOverlay';
+const OVERLAY_POSITIONS = ['top-right', 'bottom-right', 'bottom-left', 'top-left', 'center'];
 
 const loadOverlayPrefs = () => {
   if (typeof window === 'undefined') return null;
@@ -59,6 +60,7 @@ export const useRecordingStore = create((set, get) => ({
   selectedAudioInputId: 'default',
   meterLevel: 0,
   isAudioMuted: false,
+  overlayKeyframes: [],
 
   // Session
   sessionStartedAt: null,
@@ -113,18 +115,29 @@ export const useRecordingStore = create((set, get) => ({
     const overlay = { ...get().overlay, position };
     persistOverlayPrefs(overlay);
     set({ overlay });
+    get().recordOverlayChange(overlay);
   },
 
   setOverlaySize: (size) => {
     const overlay = { ...get().overlay, size };
     persistOverlayPrefs(overlay);
     set({ overlay });
+    get().recordOverlayChange(overlay);
   },
 
   setOverlayBorderRadius: (borderRadius) => {
     const overlay = { ...get().overlay, borderRadius };
     persistOverlayPrefs(overlay);
     set({ overlay });
+    get().recordOverlayChange(overlay);
+  },
+
+  cycleOverlayPosition: () => {
+    const currentPosition = get().overlay.position || 'top-right';
+    const currentIndex = OVERLAY_POSITIONS.indexOf(currentPosition);
+    const nextPosition =
+      OVERLAY_POSITIONS[(currentIndex + 1) % OVERLAY_POSITIONS.length] || 'top-right';
+    get().setOverlayPosition(nextPosition);
   },
 
   setAvailableAudioInputs: (devices) => {
@@ -158,6 +171,12 @@ export const useRecordingStore = create((set, get) => ({
       elapsedSeconds: 0,
       countdownSeconds: null,
       isSetupModalOpen: false,
+      overlayKeyframes: [
+        {
+          timestamp: 0,
+          overlay: { ...get().overlay },
+        },
+      ],
     }),
 
   updateElapsed: () => {
@@ -186,5 +205,37 @@ export const useRecordingStore = create((set, get) => ({
       countdownSeconds: null,
       sessionStartedAt: null,
       elapsedSeconds: 0,
+      overlayKeyframes: [],
     }),
+
+  recordOverlayChange: (overlayOverride = null) => {
+    const { sessionStartedAt, status } = get();
+    if (!sessionStartedAt || !['recording', 'paused'].includes(status)) return;
+
+    const overlay = overlayOverride ? { ...overlayOverride } : { ...get().overlay };
+    const timestamp = Math.max(0, (Date.now() - sessionStartedAt) / 1000);
+
+    set((state) => {
+      const keyframes = state.overlayKeyframes || [];
+      const last = keyframes[keyframes.length - 1];
+
+      const overlayChanged =
+        !last ||
+        last.overlay.position !== overlay.position ||
+        Math.abs((last.overlay.size ?? 0) - (overlay.size ?? 0)) > 0.001 ||
+        (last.overlay.borderRadius ?? 0) !== (overlay.borderRadius ?? 0);
+
+      const nextKeyframe = { timestamp, overlay };
+
+      if (!overlayChanged) {
+        return {
+          overlayKeyframes: [...keyframes.slice(0, -1), nextKeyframe],
+        };
+      }
+
+      return {
+        overlayKeyframes: [...keyframes, nextKeyframe],
+      };
+    });
+  },
 }));

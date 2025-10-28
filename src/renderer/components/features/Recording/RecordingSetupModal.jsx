@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/Slider';
 import { useRecordingStore } from '@/store/recordingStore';
 import { recordingService } from '@/services/recordingService';
 
-const OVERLAY_POSITIONS = [
+export const OVERLAY_POSITIONS = [
   { id: 'top-left', label: 'Top Left' },
   { id: 'top-right', label: 'Top Right' },
   { id: 'bottom-left', label: 'Bottom Left' },

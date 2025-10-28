@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Video, Pause, Play, Square, Dot, Mic, MicOff } from 'lucide-react';
+import { Video, Pause, Play, Square, Dot, Mic, MicOff, Webcam } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useRecordingStore } from '@/store/recordingStore';
 import { useMediaStore } from '@/store/mediaStore';
 import { recordingService } from '@/services/recordingService';
 import { importVideoFiles } from '@/services/mediaService';
-import { RecordingSetupModal } from './RecordingSetupModal';
+import { RecordingSetupModal, OVERLAY_POSITIONS } from './RecordingSetupModal';
 
 const COUNTDOWN_SECONDS = 3;
 
@@ -31,7 +31,6 @@ export function RecordingControls({ pushToast }) {
   const {
     status,
     openSetupModal,
-    isSetupModalOpen,
     closeSetupModal,
     countdownSeconds,
     setStatus,
@@ -48,10 +47,12 @@ export function RecordingControls({ pushToast }) {
     isAudioMuted,
     toggleMute,
     audioEnabled,
+    cameraEnabled,
+    overlay,
+    cycleOverlayPosition,
   } = useRecordingStore((state) => ({
     status: state.status,
     openSetupModal: state.openSetupModal,
-    isSetupModalOpen: state.isSetupModalOpen,
     closeSetupModal: state.closeSetupModal,
     countdownSeconds: state.countdownSeconds,
     setStatus: state.setStatus,
@@ -68,6 +69,9 @@ export function RecordingControls({ pushToast }) {
     isAudioMuted: state.isAudioMuted,
     toggleMute: state.toggleMute,
     audioEnabled: state.audioEnabled,
+    cameraEnabled: state.cameraEnabled,
+    overlay: state.overlay,
+    cycleOverlayPosition: state.cycleOverlayPosition,
   }));
 
   const busy = useMemo(
@@ -84,6 +88,12 @@ export function RecordingControls({ pushToast }) {
 
     return () => clearInterval(interval);
   }, [status, updateElapsed]);
+
+  useEffect(() => {
+    if (!overlay) return;
+    if (status !== 'recording' && status !== 'paused') return;
+    recordingService.updateOverlay(overlay);
+  }, [overlay, status]);
 
   const handleArmRecording = useCallback(
     async (config) => {
@@ -132,36 +142,77 @@ export function RecordingControls({ pushToast }) {
   );
 
   const handleStop = useCallback(async () => {
+    const preStopState = useRecordingStore.getState();
+    if (preStopState.cameraEnabled) {
+      preStopState.recordOverlayChange(preStopState.overlay);
+    }
+    const snapshot = useRecordingStore.getState();
     setStatus('saving');
     try {
-      const { blob } = await recordingService.stopRecording();
+      const recordingResult = await recordingService.stopRecording();
       setMeterLevel(0);
 
-      const savedPath = await recordingService.persistRecordingBlob(blob, {
-        extension: 'webm',
-      });
+      const savedOutputs = await recordingService.persistRecordingOutputs(recordingResult);
 
-      const fileName = savedPath.split(/[\\/]/).pop() || 'Recording.webm';
-      const recordingFile = new File([blob], fileName, {
-        type: 'video/webm',
+      const playbackResult = recordingResult.preview || recordingResult.base;
+      const playbackInfo = savedOutputs.preview || savedOutputs.base;
+
+      if (!playbackResult || !playbackInfo) {
+        throw new Error('Recording data unavailable');
+      }
+
+      const playbackFile = new File([playbackResult.blob], playbackInfo.fileName, {
+        type: playbackResult.mimeType || 'video/webm',
         lastModified: Date.now(),
       });
-      recordingFile.path = savedPath;
+      playbackFile.path = playbackInfo.path;
 
-      const imported = await importVideoFiles([recordingFile]);
+      const overlayKeyframes =
+        snapshot.cameraEnabled && Array.isArray(snapshot.overlayKeyframes)
+          ? snapshot.overlayKeyframes.map((entry) => {
+              const rawTimestamp = typeof entry.timestamp === 'number' ? entry.timestamp : 0;
+              const formattedTimestamp = Number(rawTimestamp.toFixed(3));
+              return {
+                timestamp: formattedTimestamp,
+                overlay: entry.overlay ? { ...entry.overlay } : null,
+              };
+            })
+          : [];
+
+      const recordingMeta = {
+        sessionStartedAt: snapshot.sessionStartedAt,
+        durationSeconds: snapshot.elapsedSeconds,
+        audioEnabled: snapshot.audioEnabled,
+        cameraEnabled: snapshot.cameraEnabled,
+        overlay: snapshot.cameraEnabled && snapshot.overlay ? { ...snapshot.overlay } : null,
+        overlayKeyframes: overlayKeyframes.length > 0 ? overlayKeyframes : null,
+        previewPath: playbackInfo.path,
+        basePath: savedOutputs.base?.path || null,
+        cameraPath: savedOutputs.camera?.path || null,
+        cameraResolution: recordingResult.cameraDimensions || null,
+        screenResolution: recordingResult.screenDimensions || null,
+        overlayDefaults: recordingResult.overlayDefaults || null,
+        overlayMargin: recordingResult.overlayMargin,
+        sourceFileBaseName: savedOutputs.baseName,
+        mutedOnStop: snapshot.isAudioMuted,
+      };
+
+      const imported = await importVideoFiles([playbackFile], {
+        enrichFile: () => ({
+          sourceType: 'screen-recording',
+          recordingMeta,
+        }),
+      });
+
       if (imported.length > 0) {
         addFiles(imported);
-        pushToast(`Recording saved as ${fileName}`, 'success', 5000);
+        pushToast(`Recording saved as ${playbackInfo.fileName}`, 'success', 5000);
       } else {
         pushToast('Recording saved, but failed to import metadata', 'warning', 5000);
       }
     } catch (error) {
       console.error('Failed to stop and save recording', error);
-      pushToast(
-        error?.message || 'Failed to save recording',
-        'error',
-        6000
-      );
+      pushToast(error?.message || 'Failed to save recording', 'error', 6000);
     } finally {
       resetSession();
     }
@@ -184,6 +235,9 @@ export function RecordingControls({ pushToast }) {
   }, [isAudioMuted, toggleMute]);
 
   const audioMeterWidth = Math.round((meterLevel || 0) * 100);
+  const overlayPositionLabel =
+    OVERLAY_POSITIONS.find((position) => position.id === overlay?.position)?.label ||
+    'Top Right';
 
   return (
     <>
@@ -223,6 +277,18 @@ export function RecordingControls({ pushToast }) {
                   {isAudioMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 </button>
               </div>
+            )}
+
+            {cameraEnabled && status !== 'countdown' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={cycleOverlayPosition}
+                tooltip="Cycle overlay position"
+                icon={<Webcam className="h-4 w-4" />}
+              >
+                PiP: {overlayPositionLabel}
+              </Button>
             )}
 
             {status === 'paused' ? (

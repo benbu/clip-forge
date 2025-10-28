@@ -7,8 +7,9 @@
  * @param {File[]} files - Array of File objects
  * @returns {Promise<Array>} Array of file objects with metadata
  */
-export async function importVideoFiles(files) {
+export async function importVideoFiles(files, options = {}) {
   const importedFiles = [];
+  const { enrichFile } = options || {};
   
   for (const file of files) {
     try {
@@ -31,6 +32,17 @@ export async function importVideoFiles(files) {
         originalFile: file, // Keep reference to File object for blob URL creation
         createdAt: new Date().toISOString(),
       };
+
+      if (typeof enrichFile === 'function') {
+        try {
+          const extras = await enrichFile({ file, metadata, base: fileObj });
+          if (extras && typeof extras === 'object') {
+            Object.assign(fileObj, extras);
+          }
+        } catch (extraError) {
+          console.warn(`Failed to enrich metadata for ${file.name}:`, extraError);
+        }
+      }
       
       importedFiles.push(fileObj);
     } catch (error) {
@@ -139,4 +151,3 @@ function formatDuration(seconds) {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   }
 }
-

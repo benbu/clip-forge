@@ -62,12 +62,15 @@ export class ExportService {
           const mediaFile = mediaStore.files.find((f) => f.id === clip.mediaFileId);
           if (!mediaFile) return null;
 
-          const source =
+          const recordingMeta = mediaFile.recordingMeta || clip.recordingMeta || {};
+
+          const baseSource =
+            recordingMeta.basePath ||
             mediaFile.originalFile ||
             mediaStore.fileBlobUrls?.[mediaFile.id] ||
             mediaFile.path;
 
-          if (!source) return null;
+          if (!baseSource) return null;
 
           const duration =
             clip.duration ??
@@ -76,9 +79,22 @@ export class ExportService {
 
           return {
             id: clip.id,
-            source,
-        duration,
+            source: baseSource,
+            overlaySource: recordingMeta.cameraPath || null,
+            overlayKeyframes: recordingMeta.overlayKeyframes || null,
+            overlayDefaults: recordingMeta.overlay || recordingMeta.overlayDefaults || null,
+            overlayMargin: recordingMeta.overlayMargin,
+            screenResolution:
+              recordingMeta.screenResolution || {
+                width: mediaFile.width,
+                height: mediaFile.height,
+              },
+            cameraResolution: recordingMeta.cameraResolution || null,
+            previewSource: mediaFile.path,
+            duration,
             name: mediaFile.name,
+            sourceType: mediaFile.sourceType,
+            recordingMeta,
           };
         })
         .filter(Boolean);
