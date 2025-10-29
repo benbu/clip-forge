@@ -26,7 +26,8 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [x] Implement ripple editing and intelligent gap handling when clips are trimmed or removed.
   - Timeline trims now close gaps automatically and reflow downstream clips in the affected track.
   - Removing clips performs a ripple-collapse so subsequent clips advance without leaving dead air.
-- [ ] Improve timeline zooming with mousewheel + modifier shortcuts and a minimap for quick navigation.
+- [x] Improve timeline zooming with mousewheel + modifier shortcuts and a minimap for quick navigation.
+  - Introduced `TimelineMinimap`, zoom box, keyboard shortcuts (Ctrl +/−) and shift+wheel support tied into global zoom store.
 
 ## 4. Export & Delivery Improvements
 - [x] Expand export presets beyond the MVP: add social-ready formats (Square 1080x1080, Vertical 1080x1920), bitrate presets, and frame-rate selection.

@@ -10,14 +10,17 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useMediaStore } from '@/store/mediaStore';
 import { TextOverlayDialog } from './TextOverlayDialog';
 import { createDefaultTextOverlay, sanitizeTextOverlay } from '@/lib/textOverlay';
+import { TimelineMinimap } from './TimelineMinimap';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export function Timeline() {
-  const { 
-    clips, 
+  const {
+    clips,
     playheadPosition,
     zoom,
     snapToGrid,
     setZoom,
+    nudgeZoom,
     toggleSnapToGrid,
     splitClipAtPlayhead,
     addClip,
@@ -140,30 +143,46 @@ export function Timeline() {
   const handleZoomInputChange = (value) => {
     setZoomInput(value);
   };
-  
+
+  const applyZoomValue = useCallback(
+    (rawValue) => {
+      const numValue = Number.parseFloat(rawValue);
+      if (!Number.isFinite(numValue)) {
+        setZoomInput(zoom.toFixed(2));
+        return;
+      }
+      const applied = setZoom(numValue);
+      setZoomInput(applied.toFixed(2));
+    },
+    [setZoom, zoom]
+  );
+
   const handleZoomInputBlur = () => {
-    const numValue = parseFloat(zoomInput);
-    if (isNaN(numValue)) {
-      // Revert to current zoom if non-number
-      setZoomInput(zoom.toFixed(2));
-    } else {
-      // Clamp to valid range
-      const clampedValue = Math.max(0.1, Math.min(10, numValue));
-      setZoomInput(clampedValue.toFixed(2));
-      setZoom(clampedValue);
-    }
+    applyZoomValue(zoomInput);
   };
-  
+
   const handleZoomInputKeyDown = (e) => {
     if (e.key === 'Enter') {
+      applyZoomValue(zoomInput);
+      zoomInputRef.current?.blur();
+    }
+    if (e.key === 'Escape') {
+      setZoomInput(zoom.toFixed(2));
       zoomInputRef.current?.blur();
     }
   };
-  
-  // Sync input when zoom changes externally
+
   useEffect(() => {
     setZoomInput(zoom.toFixed(2));
   }, [zoom]);
+
+  const handleZoomIncrement = useCallback(
+    (delta) => {
+      const nextZoom = nudgeZoom(delta);
+      setZoomInput(nextZoom.toFixed(2));
+    },
+    [nudgeZoom]
+  );
 
   const handleSplitClick = () => {
     // Find clip at playhead and split it
@@ -325,6 +344,34 @@ export function Timeline() {
     return 'video';
   };
   
+  useEffect(() => {
+    const node = timelineRef.current;
+    if (!node) return undefined;
+
+    const handleWheel = (event) => {
+      if (!event.shiftKey) return;
+      event.preventDefault();
+
+      const normalized = event.deltaY || event.deltaX;
+      if (normalized === 0) return;
+      const delta = normalized > 0 ? -0.25 : 0.25;
+      handleZoomIncrement(delta);
+    };
+
+    node.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      node.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleZoomIncrement]);
+
+  useKeyboardShortcuts(
+    {
+      ZOOM_IN: () => handleZoomIncrement(0.25),
+      ZOOM_OUT: () => handleZoomIncrement(-0.25),
+    },
+    [handleZoomIncrement]
+  );
+
   return (
     <div 
       ref={timelineRef}
@@ -353,16 +400,12 @@ export function Timeline() {
         <div className="flex items-center gap-2">
           <h3 className="text-xs uppercase font-semibold text-zinc-400">Timeline</h3>
           <div className="flex items-center gap-1">
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              icon={<ZoomOut className="h-3.5 w-3.5" />} 
-              iconOnly 
-              onClick={() => {
-                const newZoom = Math.max(0.1, zoom - 0.25);
-                setZoom(newZoom);
-                setZoomInput(newZoom.toFixed(2));
-              }} 
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<ZoomOut className="h-3.5 w-3.5" />}
+              iconOnly
+              onClick={() => handleZoomIncrement(-0.25)}
             />
             <Input
               ref={zoomInputRef}
@@ -379,11 +422,7 @@ export function Timeline() {
               variant="ghost" 
               icon={<ZoomIn className="h-3.5 w-3.5" />} 
               iconOnly 
-              onClick={() => {
-                const newZoom = Math.min(10, zoom + 0.25);
-                setZoom(newZoom);
-                setZoomInput(newZoom.toFixed(2));
-              }} 
+              onClick={() => handleZoomIncrement(0.25)} 
             />
           </div>
           <Button 
@@ -422,6 +461,13 @@ export function Timeline() {
           return (
             <>
               {/* Time Ruler */}
+              <TimelineMinimap
+                clips={clips}
+                tracks={tracks}
+                playhead={playheadPosition}
+                zoom={zoom}
+                maxDuration={MAX_DURATION}
+              />
               <TimeRuler startTime={0} endTime={visibleDuration} zoom={zoom} playhead={playheadPosition} visibleDuration={visibleDuration} />
               
               {/* Tracks Container */}

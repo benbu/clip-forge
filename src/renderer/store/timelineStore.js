@@ -623,7 +623,19 @@ export const useTimelineStore = create((set, get) => ({
 
   setPlayheadPosition: (position) => set({ playheadPosition: position }),
 
-  setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(10, zoom)) }),
+  setZoom: (nextZoom) => {
+    const clamped = Math.max(0.1, Math.min(10, Number(nextZoom) || 0));
+    set({ zoom: clamped });
+    return clamped;
+  },
+
+  nudgeZoom: (delta) => {
+    const current = get().zoom ?? 1;
+    const next = Math.max(0.1, Math.min(10, Number(current) + Number(delta || 0)));
+    set({ zoom: next });
+    return next;
+  },
+
 
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
 
