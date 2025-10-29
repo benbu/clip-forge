@@ -194,7 +194,7 @@ export function VideoPlayer() {
         cancelAnimationFrame(seekRafRef.current);
       }
     };
-  }, [seek, setPlayheadPosition, setDuration, playbackSource]);
+  }, [seek, setPlayheadPosition, setDuration, playbackSource, isPlaying, isScrubbing, clips, pause]);
   
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   

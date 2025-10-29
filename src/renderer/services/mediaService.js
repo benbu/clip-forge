@@ -18,12 +18,20 @@ export async function importVideoFiles(files, options = {}) {
       
       // Generate thumbnail
       const thumbnail = await generateVideoThumbnail(file);
+
+      const rawPath =
+        typeof file.path === 'string' && file.path.length > 0
+          ? file.path
+          : typeof file.originalPath === 'string' && file.originalPath.length > 0
+            ? file.originalPath
+            : null;
       
       // Create file object
       const fileObj = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: file.name,
-        path: file.path || file.name,
+        path: rawPath || file.name,
+        originalPath: rawPath,
         size: formatFileSize(file.size),
         sizeBytes: file.size, // Keep original for future reference
         type: file.type,

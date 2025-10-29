@@ -61,11 +61,18 @@ export async function extractVideoMetadata(file) {
  */
 export function createFileObject(file, metadata = {}) {
   const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const rawPath =
+    (typeof file.path === 'string' && file.path.length > 0)
+      ? file.path
+      : (typeof file.originalPath === 'string' && file.originalPath.length > 0)
+        ? file.originalPath
+        : null;
   
   return {
     id,
     name: file.name,
-    path: file.path || file.name,
+    path: rawPath || file.name,
+    originalPath: rawPath,
     size: file.size || metadata.size || 0,
     type: file.type || 'video/mp4',
     duration: metadata.duration || 0,
@@ -74,5 +81,25 @@ export function createFileObject(file, metadata = {}) {
     thumbnail: null, // Will be generated later
     createdAt: new Date().toISOString(),
   };
+}
+
+export function isAbsolutePath(value) {
+  if (typeof value !== 'string') return false;
+  if (value.length === 0) return false;
+  if (value.startsWith('\\')) return true; // UNC paths
+  if (/^[a-zA-Z]:[\\\/]/.test(value)) return true; // Windows drive paths
+  if (value.startsWith('/')) return true; // POSIX absolute
+  return false;
+}
+
+export function resolveFileSystemPath(file) {
+  if (!file) return null;
+  const candidate =
+    (typeof file.originalPath === 'string' && file.originalPath.length > 0)
+      ? file.originalPath
+      : (typeof file.path === 'string' && file.path.length > 0)
+        ? file.path
+        : null;
+  return isAbsolutePath(candidate) ? candidate : null;
 }
 

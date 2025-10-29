@@ -58,6 +58,8 @@ export function ClipDetailDrawer({ file, onClose }) {
 
   if (!file) return null;
 
+  const displayPath = file.originalPath || file.path || '';
+
   return (
     <div className="absolute top-0 right-0 h-full w-80 bg-zinc-900/95 border-l border-white/10 shadow-xl z-40 p-3">
       <div className="flex items-center justify-between mb-2">
@@ -92,7 +94,7 @@ export function ClipDetailDrawer({ file, onClose }) {
           <div className="text-xs text-zinc-400">Resolution: <span className="text-zinc-200">{file.resolution}</span></div>
           <div className="text-xs text-zinc-400">Size: <span className="text-zinc-200">{file.size}</span></div>
           <div className="text-xs text-zinc-400">Imported: <span className="text-zinc-200">{new Date(file.createdAt).toLocaleString()}</span></div>
-          <div className="text-xs text-zinc-400 truncate" title={file.path}>Path: <span className="text-zinc-200">{file.path}</span></div>
+          <div className="text-xs text-zinc-400 truncate" title={displayPath}>Path: <span className="text-zinc-200">{displayPath || 'Not available'}</span></div>
           <div className="text-xs text-zinc-400">Type: <span className="text-zinc-200">{file.type}</span></div>
           <div className="text-xs text-zinc-400">Source: <span className="text-zinc-200">{file.sourceType || 'external'}</span></div>
         </div>

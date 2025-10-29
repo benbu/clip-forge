@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Volume2, VolumeX, Eye, Lock, Trash2, ChevronUp, ChevronDown, Headphones } from 'lucide-react';
+import { Volume2, VolumeX, Eye, Lock, Trash2, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { Clip } from './Clip';
@@ -25,7 +25,6 @@ export function Track({
   const setTrackVolume = useTimelineStore((state) => state.setTrackVolume);
   const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
   const toggleTrackSolo = useTimelineStore((state) => state.toggleTrackSolo);
-  const nudgeTrackHeight = useTimelineStore((state) => state.nudgeTrackHeight);
 
   const isVisible = track.isVisible ?? true;
   const isLocked = track.isLocked ?? false;
@@ -53,14 +52,6 @@ export function Track({
   const handleToggleSolo = useCallback(() => {
     toggleTrackSolo(track.id);
   }, [toggleTrackSolo, track.id]);
-
-  const handleNudgeHeight = useCallback(
-    (delta) => {
-      if (isLocked) return;
-      nudgeTrackHeight(track.id, delta);
-    },
-    [isLocked, nudgeTrackHeight, track.id]
-  );
 
   const trackHeightPx = useMemo(() => Math.round(trackHeight * 96), [trackHeight]);
 
@@ -112,69 +103,65 @@ export function Track({
           )}
           style={{ width: TRACK_LABEL_WIDTH_PX }}
         >
-          <div className="text-xs font-medium text-zinc-300 flex items-center gap-1">
+          <div className="text-[11px] font-medium text-zinc-300 flex items-center gap-1.5">
             {track.name}
-            <span className="ml-1 text-[10px] uppercase text-zinc-500">
+            <span className="ml-0.5 text-[9px] uppercase text-zinc-500">
               {track.type}
             </span>
+            {isAudioTrack && (
+              <button
+                type="button"
+                className={cn(
+                  'flex h-3 w-3 items-center justify-center rounded-md border border-white/10 transition focus:outline-none focus:ring-1 focus:ring-amber-400/80',
+                  isSolo
+                    ? 'bg-amber-500/30 text-amber-100 hover:bg-amber-500/40'
+                    : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60',
+                  isLocked && 'opacity-40 cursor-not-allowed pointer-events-none'
+                )}
+                onClick={handleToggleSolo}
+                disabled={isLocked}
+                aria-label={isSolo ? 'Disable solo' : 'Enable solo'}
+              >
+                <Headphones className="h-2 w-2" />
+              </button>
+            )}
             {isLocked && (
               <Lock className="h-3 w-3 text-indigo-400" aria-hidden="true" />
-            )}
-            {isSolo && (
-              <Headphones className="h-3 w-3 text-amber-300" aria-hidden="true" />
             )}
           </div>
 
           <div className="flex items-center gap-1">
-            <Volume2 className={cn('h-3 w-3', isAudioTrack ? 'text-zinc-400' : 'text-zinc-600')} />
+            <button
+              type="button"
+              className={cn(
+                'flex h-3 w-3 items-center justify-center rounded-md border border-white/10 transition focus:outline-none focus:ring-1 focus:ring-amber-400/80',
+                isMuted
+                  ? 'bg-red-500/20 text-red-200 hover:bg-red-500/30'
+                  : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60',
+                (!isAudioTrack || isLocked) && 'opacity-40 cursor-not-allowed pointer-events-none'
+              )}
+              onClick={handleToggleMute}
+              disabled={isLocked || !isAudioTrack}
+              aria-label={isMuted ? 'Unmute track' : 'Mute track'}
+            >
+              {isMuted ? (
+                <VolumeX className="h-2 w-2" />
+              ) : (
+                <Volume2 className="h-2 w-2" />
+              )}
+            </button>
             <input
               type="range"
               min="0"
               max="100"
               value={isMuted ? 0 : trackVolume}
               onChange={handleVolumeChange}
-              className="flex-1 h-1"
+              className="w-24 h-1"
               disabled={isLocked || !isAudioTrack}
             />
-            <span className="text-xs text-zinc-400 w-10 text-right">
-              {isMuted ? 'Muted' : `${trackVolume}%`}
+            <span className="text-[10px] text-zinc-400 w-10 text-right">
+              {`${isMuted ? 0 : trackVolume}%`}
             </span>
-            <button
-              type="button"
-              className={cn(
-                'ml-1 rounded-md border border-white/10 px-1 py-0.5 text-[10px] uppercase tracking-wide transition',
-                isMuted
-                  ? 'bg-red-500/20 text-red-200 hover:bg-red-500/30'
-                  : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60',
-                (!isAudioTrack || isLocked) && 'opacity-40 cursor-not-allowed'
-              )}
-              onClick={handleToggleMute}
-              disabled={isLocked || !isAudioTrack}
-            >
-              <span className="inline-flex items-center gap-1">
-                {isMuted ? (
-                  <VolumeX className="h-3 w-3" />
-                ) : (
-                  <Volume2 className="h-3 w-3" />
-                )}
-                {isMuted ? 'Unmute' : 'Mute'}
-              </span>
-            </button>
-            {isAudioTrack && (
-              <button
-                type="button"
-                className={cn(
-                  'ml-1 rounded-md border border-white/10 px-1 py-0.5 text-[10px] uppercase tracking-wide transition',
-                  isSolo
-                    ? 'bg-amber-500/30 text-amber-100 hover:bg-amber-500/40'
-                    : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'
-                )}
-                onClick={handleToggleSolo}
-                disabled={isLocked}
-              >
-                Solo
-              </button>
-            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -183,12 +170,14 @@ export function Track({
               checked={isVisible}
               onChange={(next) => setTrackVisibility(track.id, next)}
               disabled={isLocked}
+              size="sm"
             />
 
             <Lock className={cn('h-3 w-3', isLocked ? 'text-indigo-400' : 'text-zinc-400')} />
             <Switch
               checked={isLocked}
               onChange={(next) => setTrackLocked(track.id, next)}
+              size="sm"
             />
             
             <Button
@@ -201,25 +190,6 @@ export function Track({
             />
           </div>
 
-          <div className="flex items-center gap-1 text-[10px] text-zinc-500">
-            <span>Height</span>
-            <button
-              type="button"
-              className="rounded-md border border-white/10 p-0.5 hover:bg-zinc-700/60 transition disabled:opacity-40"
-              onClick={() => handleNudgeHeight(0.25)}
-              disabled={isLocked}
-            >
-              <ChevronUp className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-white/10 p-0.5 hover:bg-zinc-700/60 transition disabled:opacity-40"
-              onClick={() => handleNudgeHeight(-0.25)}
-              disabled={isLocked}
-            >
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </div>
         </div>
 
         {/* Clip Area */}

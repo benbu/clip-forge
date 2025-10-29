@@ -1,5 +1,6 @@
 import { useMediaStore } from '@/store/mediaStore';
 import { enqueueThumbnailJobs } from '@/services/thumbnailService';
+import { resolveFileSystemPath, isAbsolutePath } from '@/lib/fileUtils';
 
 export async function checkMissingMedia(files) {
   if (!Array.isArray(files) || files.length === 0) return;
@@ -7,9 +8,15 @@ export async function checkMissingMedia(files) {
   if (!api?.fileExists) return;
   const { updateFile } = useMediaStore.getState();
   for (const f of files) {
-    if (!f?.path) continue;
+    const targetPath = resolveFileSystemPath(f);
+    if (!targetPath || !isAbsolutePath(targetPath)) {
+      if (f?.missing) {
+        updateFile(f.id, { missing: false });
+      }
+      continue;
+    }
     try {
-      const res = await api.fileExists(f.path);
+      const res = await api.fileExists(targetPath);
       if (!res?.exists) {
         updateFile(f.id, { missing: true });
       } else if (f.missing) {

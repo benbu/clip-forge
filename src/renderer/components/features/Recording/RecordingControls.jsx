@@ -215,6 +215,7 @@ export function RecordingControls({ pushToast }) {
           : null;
       if (baseFile && savedOutputs.base?.path) {
         baseFile.path = savedOutputs.base.path;
+        baseFile.originalPath = savedOutputs.base.path;
       }
 
       const cameraFile =
@@ -226,6 +227,7 @@ export function RecordingControls({ pushToast }) {
           : null;
       if (cameraFile && savedOutputs.camera?.path) {
         cameraFile.path = savedOutputs.camera.path;
+        cameraFile.originalPath = savedOutputs.camera.path;
       }
 
       if (!playbackResult || !playbackInfo) {
@@ -237,6 +239,7 @@ export function RecordingControls({ pushToast }) {
         lastModified: Date.now(),
       });
       playbackFile.path = playbackInfo.path;
+      playbackFile.originalPath = playbackInfo.path;
 
       const overlayKeyframes =
         snapshot.cameraEnabled && Array.isArray(snapshot.overlayKeyframes)

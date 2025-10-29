@@ -1,6 +1,7 @@
 import { useMediaStore } from '@/store/mediaStore';
 import { importVideoFiles } from '@/services/mediaService';
 import { generateThumbnail as ffmpegGenerateThumbnail } from '@/services/videoService';
+import { resolveFileSystemPath } from '@/lib/fileUtils';
 
 // Simple localStorage-backed cache
 const NAMESPACE = 'clipforge:thumbcache:v1';
@@ -21,7 +22,7 @@ function setCache(cache) {
 }
 
 function computeKey(file) {
-  const path = file?.path || file?.name || 'unknown';
+  const path = resolveFileSystemPath(file) || file?.name || 'unknown';
   const size = Number(file?.sizeBytes || 0);
   const dur = Number(file?.durationSeconds || 0);
   return `${path}|${size}|${dur}`;
@@ -80,12 +81,15 @@ async function generateAndStore(file) {
       // Reuse mediaService path for canvas-based generation
       const [withThumb] = await importVideoFiles([file.originalFile]);
       dataUrl = withThumb?.thumbnail || null;
-    } else if (file.path) {
-      // Use ffmpeg worker fallback if available
-      try {
-        dataUrl = await ffmpegGenerateThumbnail(file.path, 1);
-      } catch (_) {
-        dataUrl = null;
+    } else {
+      const filePath = resolveFileSystemPath(file);
+      if (filePath) {
+        // Use ffmpeg worker fallback if available
+        try {
+          dataUrl = await ffmpegGenerateThumbnail(filePath, 1);
+        } catch (_) {
+          dataUrl = null;
+        }
       }
     }
   } catch (_) {

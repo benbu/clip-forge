@@ -1,7 +1,24 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-export function Switch({ checked, onChange, disabled = false, className, ...props }) {
+const sizeStyles = {
+  md: {
+    track: 'h-6 w-11',
+    thumb: 'h-4 w-4',
+    checked: 'translate-x-6',
+    unchecked: 'translate-x-1',
+  },
+  sm: {
+    track: 'h-3 w-6',
+    thumb: 'h-2 w-2',
+    checked: 'translate-x-3',
+    unchecked: 'translate-x-1',
+  },
+};
+
+export function Switch({ checked, onChange, disabled = false, className, size = 'md', ...props }) {
+  const styles = sizeStyles[size] ?? sizeStyles.md;
+
   return (
     <button
       type="button"
@@ -10,7 +27,8 @@ export function Switch({ checked, onChange, disabled = false, className, ...prop
       onClick={() => onChange(!checked)}
       disabled={disabled}
       className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+        'relative inline-flex items-center rounded-full transition-colors',
+        styles.track,
         checked ? 'bg-indigo-600' : 'bg-zinc-700',
         disabled && 'opacity-50 cursor-not-allowed',
         !disabled && 'cursor-pointer',
@@ -20,8 +38,9 @@ export function Switch({ checked, onChange, disabled = false, className, ...prop
     >
       <span
         className={cn(
-          'inline-block h-4 w-4 rounded-full bg-white transition-transform',
-          checked ? 'translate-x-6' : 'translate-x-1'
+          'inline-block rounded-full bg-white transition-transform',
+          styles.thumb,
+          checked ? styles.checked : styles.unchecked
         )}
       />
     </button>
