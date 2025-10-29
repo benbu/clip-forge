@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, Download, Monitor, FileVideo } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +25,29 @@ export function ExportModal({ isOpen, onClose }) {
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
+  const [profileId, setProfileId] = useState(settings?.profile || 'balanced');
+  const [nativeSupport, setNativeSupport] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSupport = async () => {
+      if (!window.electronAPI?.getNativeExportSupport) return;
+      try {
+        const response = await window.electronAPI.getNativeExportSupport();
+        if (!cancelled && response?.success) {
+          setNativeSupport(response.encoders || null);
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setNativeSupport(null);
+        }
+      }
+    };
+    fetchSupport();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   const presets = [
     { id: '720p', label: '720p HD', resolution: '1280x720' },
@@ -38,6 +61,62 @@ export function ExportModal({ isOpen, onClose }) {
     { id: 'webm', label: 'WebM (VP9)', extension: '.webm' },
     { id: 'mov', label: 'MOV (QuickTime)', extension: '.mov' },
   ];
+
+  const hasHardware = Boolean(nativeSupport?.nvenc || nativeSupport?.qsv || nativeSupport?.amf);
+
+  const profiles = useMemo(
+    () => [
+      {
+        id: 'draft',
+        label: 'Draft (Fast)',
+        description: 'Quick encode for reviews',
+        options: {
+          engine: 'wasm',
+          preset: 'ultrafast',
+          crf: 30,
+          bitrate: '4000k',
+          fps: 30,
+        },
+      },
+      {
+        id: 'balanced',
+        label: 'Balanced',
+        description: 'Default quality vs speed',
+        options: {
+          engine: 'wasm',
+          preset: 'veryfast',
+          crf: 23,
+          bitrate: '8000k',
+          fps: 60,
+        },
+      },
+      {
+        id: 'production',
+        label: hasHardware ? 'Production (Hardware)' : 'Production (CPU)',
+        description: hasHardware
+          ? 'Use native pipeline + GPU encoders'
+          : 'High quality software encode',
+        options: hasHardware
+          ? {
+              engine: 'native',
+              hardware: 'auto',
+              crf: 20,
+              bitrate: '12000k',
+              fps: 60,
+            }
+          : {
+              engine: 'wasm',
+              preset: 'fast',
+              crf: 20,
+              bitrate: '12000k',
+              fps: 60,
+            },
+      },
+    ],
+    [hasHardware]
+  );
+
+  const activeProfile = profiles.find((profile) => profile.id === profileId) || profiles[1];
   
   const estimatedSize = clips.length * 50; // Rough estimate: 50MB per clip
   const estimatedDuration = clips.reduce((total, clip) => total + (clip.duration || 0), 0);
@@ -48,15 +127,17 @@ export function ExportModal({ isOpen, onClose }) {
     setError(null);
     
     try {
-      exportService.onProgress((percent) => setProgress(percent));
-      
-      const exportOptions = exportService.getExportPreset(quality);
-      
-      const result = await exportService.exportTimeline({
-        ...exportOptions,
+      exportService.onProgress((percent) => setProgress(Math.max(0, Math.min(100, percent))));
+
+      const presetOptions = exportService.getExportPreset(quality);
+      const exportOptions = {
+        ...presetOptions,
+        ...(activeProfile?.options || {}),
         format,
-        outputPath: null // Will use default or prompt
-      });
+        outputPath: null,
+      };
+
+      await exportService.exportTimeline(exportOptions);
       
       // Show success and close
       setTimeout(() => {
@@ -67,6 +148,9 @@ export function ExportModal({ isOpen, onClose }) {
     } catch (err) {
       console.error('Export error:', err);
       setError(err.message || 'Export failed');
+      setIsExporting(false);
+    } finally {
+      exportService.onProgress(null);
     }
   };
   
@@ -124,6 +208,36 @@ export function ExportModal({ isOpen, onClose }) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Encoding Profile */}
+        <div>
+          <label className="block text-sm font-medium text-zinc-300 mb-3">
+            Encoding Profile
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {profiles.map((profile) => (
+              <button
+                key={profile.id}
+                onClick={() => setProfileId(profile.id)}
+                className={`p-3 rounded-lg border-2 text-left transition-all ${
+                  profileId === profile.id
+                    ? 'border-indigo-500 bg-indigo-500/10'
+                    : 'border-white/10 bg-zinc-900/40 hover:border-white/20'
+                }`}
+              >
+                <div className="font-medium text-white">{profile.label}</div>
+                <div className="text-xs text-zinc-400 mt-1 leading-snug">{profile.description}</div>
+              </button>
+            ))}
+          </div>
+          {profileId === 'production' && (
+            <p className="text-xs text-zinc-500 mt-2">
+              {hasHardware
+                ? 'Hardware encoders detected (NVENC/QSV/AMF) — using native pipeline.'
+                : 'No hardware encoders detected. Falling back to high-quality software encode.'}
+            </p>
+          )}
         </div>
         
         {/* Format Selection */}

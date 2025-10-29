@@ -15,6 +15,107 @@ import coreWorkerURL from '@ffmpeg/ffmpeg/worker?url';
 let ffmpeg;
 let loadPromise;
 
+const hasPerformanceNow =
+  typeof performance !== 'undefined' && typeof performance.now === 'function';
+
+const now = () => (hasPerformanceNow ? performance.now() : Date.now());
+
+const shouldLogMetrics = () => {
+  if (typeof process !== 'undefined' && process?.env?.CLIPFORGE_EXPORT_METRICS === '1') {
+    return true;
+  }
+
+  if (typeof window !== 'undefined' && window?.__CLIPFORGE_EXPORT_METRICS__ === true) {
+    return true;
+  }
+
+  if (typeof import.meta !== 'undefined') {
+    const env = import.meta?.env;
+    if (env) {
+      if (env.VITE_EXPORT_METRICS === 'true') {
+        return true;
+      }
+      if (env.MODE === 'development' && env.VITE_EXPORT_METRICS !== 'false') {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+const emitMetric = (name, detail) => {
+  if (!shouldLogMetrics()) {
+    return;
+  }
+
+  if (typeof console !== 'undefined' && typeof console.info === 'function') {
+    console.info(`[metrics:${name}]`, detail);
+  }
+
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.dispatchEvent === 'function' &&
+    typeof CustomEvent === 'function'
+  ) {
+    try {
+      window.dispatchEvent(new CustomEvent(name, { detail }));
+    } catch {
+      // Ignore CustomEvent dispatch failures (e.g. non-browser env)
+    }
+  }
+};
+
+const snapshotOptions = (options = {}) => ({
+  resolution: options.resolution ?? null,
+  fps: options.fps ?? null,
+  bitrate: options.bitrate ?? null,
+  codec: options.codec ?? null,
+  crf: options.crf ?? null,
+  preset: options.preset ?? null,
+  format: options.format ?? null,
+});
+
+const canCopyExport = (options = {}) => {
+  if (!options || typeof options !== 'object') {
+    return true;
+  }
+
+  if (options.forceEncode) {
+    return false;
+  }
+
+  if (options.resolution) {
+    return false;
+  }
+
+  if (options.fps != null) {
+    return false;
+  }
+
+  if (options.bitrate) {
+    return false;
+  }
+
+  if (options.crf != null && Number(options.crf) !== 23) {
+    return false;
+  }
+
+  if (options.preset && options.preset !== 'veryfast') {
+    return false;
+  }
+
+  if (options.format && String(options.format).toLowerCase() !== 'mp4') {
+    return false;
+  }
+
+  if (options.codec && !['copy', 'libx264'].includes(options.codec)) {
+    return false;
+  }
+
+  return true;
+};
+
 async function getFFmpeg() {
   if (ffmpeg?.loaded) return ffmpeg;
 
@@ -128,6 +229,8 @@ async function runCommand(instance, args) {
     logs.push(`[${type}] ${message}`);
   };
   instance.on('log', listener);
+  const metricsActive = shouldLogMetrics();
+  const start = metricsActive ? now() : 0;
   try {
     const resultCode = await instance.exec(args);
     if (resultCode !== 0) {
@@ -140,6 +243,14 @@ async function runCommand(instance, args) {
   } finally {
     if (typeof instance.off === 'function') {
       instance.off('log', listener);
+    }
+    if (metricsActive) {
+      const durationMs = Math.max(0, now() - start);
+      emitMetric('ffmpeg:command', {
+        args,
+        durationMs,
+        timestamp: Date.now(),
+      });
     }
   }
 }
@@ -729,6 +840,59 @@ export async function exportVideo(source, outputName = 'exported.mp4', options =
   try {
     await writeInputFile(instance, inputName, source);
 
+    const metricsActive = shouldLogMetrics();
+    const optSnapshot = snapshotOptions(options);
+    let exportStart = metricsActive ? now() : 0;
+    let inputBytes = null;
+    const recordMetrics = (strategy, outputBytes, startTime) => {
+      if (!metricsActive) {
+        return;
+      }
+      const durationMs = Math.max(0, now() - startTime);
+      const throughputMbps =
+        durationMs > 0 && outputBytes != null
+          ? Number(((outputBytes * 8) / (durationMs / 1000) / 1_000_000).toFixed(3))
+          : null;
+      emitMetric('ffmpeg:export', {
+        strategy,
+        durationMs,
+        inputBytes,
+        outputBytes,
+        throughputMbps,
+        options: optSnapshot,
+        timestamp: Date.now(),
+      });
+    };
+
+    if (metricsActive) {
+      try {
+        const inputBuffer = await instance.readFile(inputName);
+        inputBytes = inputBuffer?.length ?? null;
+      } catch {
+        inputBytes = null;
+      }
+    }
+
+    if (canCopyExport(options)) {
+      const copyArgs = ['-i', inputName, '-c', 'copy', '-movflags', 'faststart', outputFile];
+      try {
+        await runCommand(instance, copyArgs);
+        const copyBuffer = await instance.readFile(outputFile);
+        recordMetrics('copy', copyBuffer?.length ?? null, exportStart);
+        return copyBuffer;
+      } catch (copyError) {
+        if (metricsActive) {
+          emitMetric('ffmpeg:exportCopyFallback', {
+            message: copyError?.message || String(copyError),
+            options: optSnapshot,
+            timestamp: Date.now(),
+          });
+        }
+        await safeDelete(instance, outputFile);
+        exportStart = metricsActive ? now() : 0;
+      }
+    }
+
     const command = ['-i', inputName];
 
     const videoFilters = [];
@@ -746,7 +910,13 @@ export async function exportVideo(source, outputName = 'exported.mp4', options =
       command.push('-b:v', options.bitrate);
     }
 
-    command.push('-c:v', options.codec || 'libx264', '-c:a', 'aac', '-preset', options.preset || 'veryfast');
+    const targetCodec = options.codec && options.codec !== 'copy' ? options.codec : 'libx264';
+    const presetValue = options.preset || 'veryfast';
+
+    command.push('-c:v', targetCodec, '-c:a', 'aac');
+    if (presetValue) {
+      command.push('-preset', presetValue);
+    }
 
     if (options.crf) {
       command.push('-crf', `${options.crf}`);
@@ -754,11 +924,16 @@ export async function exportVideo(source, outputName = 'exported.mp4', options =
       command.push('-crf', '23');
     }
 
+    command.push('-movflags', 'faststart');
     command.push(outputFile);
 
     await runCommand(instance, command);
 
-    return await instance.readFile(outputFile);
+    const outputBuffer = await instance.readFile(outputFile);
+
+    recordMetrics('encode', outputBuffer?.length ?? null, exportStart);
+
+    return outputBuffer;
   } catch (error) {
     console.error('Error exporting video:', error);
     throw error;

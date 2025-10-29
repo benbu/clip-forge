@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateRecordingStatus: (payload) => ipcRenderer.invoke('updateRecordingStatus', payload),
   fileExists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
   openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo'),
+  exportVideoNative: (payload) => ipcRenderer.invoke('exportVideo:native', payload),
+  getNativeExportSupport: () => ipcRenderer.invoke('exportVideo:native:support'),
   onTrayRecordingCommand: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, command) => {
@@ -29,5 +31,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('tray-recording-command', listener);
     };
+  },
+  onNativeExportProgress: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const channel = 'exportVideo:native:progress';
+    const listener = (_event, payload) => {
+      try {
+        callback(payload);
+      } catch (error) {
+        console.error('Native export progress listener error:', error);
+      }
+    };
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
   },
 });

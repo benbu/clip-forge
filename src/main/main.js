@@ -11,6 +11,8 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { randomUUID } = require('crypto');
+const ffmpegNative = require('./ffmpegNative');
 
 // Mitigate Windows flicker/occlusion issues and allow optional GPU disable
 if (process.platform === 'win32') {
@@ -364,6 +366,111 @@ ipcMain.handle('fs:readFile', async (_event, filePath) => {
   } catch (error) {
     console.error('Error reading file:', error);
     throw error;
+  }
+});
+
+ipcMain.handle('exportVideo:native:support', async () => {
+  try {
+    const encoders = await ffmpegNative.detectHardwareEncoders();
+    return { success: true, encoders };
+  } catch (error) {
+    console.error('Failed to probe native FFmpeg support:', error);
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('exportVideo:native', async (event, payload = {}) => {
+  const jobId = payload.jobId || `native-${typeof randomUUID === 'function' ? randomUUID() : Date.now()}`;
+  let tempInputPath = null;
+  let shouldCleanupOutput = false;
+
+  try {
+    let inputPath = payload.inputPath;
+    if (!inputPath) {
+      const source = payload.source;
+      if (!(source instanceof Uint8Array) && !Buffer.isBuffer(source)) {
+        throw new Error('Native export expects a Uint8Array source or existing input path');
+      }
+      const preferredExt = (() => {
+        const raw = payload.inputExtension;
+        if (typeof raw !== 'string' || raw.length === 0) {
+          return '.webm';
+        }
+        return raw.startsWith('.') ? raw : `.${raw}`;
+      })();
+      tempInputPath = path.join(
+        app.getPath('temp'),
+        `clipforge-native-input-${Date.now()}-${Math.random().toString(36).slice(2)}${preferredExt}`
+      );
+      await fs.writeFile(tempInputPath, Buffer.from(source));
+      inputPath = tempInputPath;
+    }
+
+    const options = {
+      resolution: payload.options?.resolution ?? null,
+      fps: payload.options?.fps ?? null,
+      bitrate: payload.options?.bitrate ?? null,
+      crf: payload.options?.crf ?? null,
+      preset: payload.options?.preset ?? null,
+      hardware: payload.options?.hardware || 'auto',
+      audioBitrate: payload.options?.audioBitrate ?? '192k',
+      durationSeconds:
+        Number.isFinite(Number(payload.durationSeconds))
+          ? Number(payload.durationSeconds)
+          : Number.isFinite(Number(payload.options?.durationSeconds))
+          ? Number(payload.options.durationSeconds)
+          : null,
+    };
+
+    const keepOutputOnDisk = payload.keepOutput === true || Boolean(payload.outputPath);
+
+    const result = await ffmpegNative.transcodeToMp4({
+      inputPath,
+      outputPath: payload.outputPath || null,
+      options,
+      onProgress: (progress) => {
+        if (typeof payload.emitProgress === 'boolean' && !payload.emitProgress) {
+          return;
+        }
+        event.sender.send('exportVideo:native:progress', {
+          jobId,
+          progress,
+        });
+      },
+    });
+
+    let buffer = null;
+    if (payload.returnBuffer !== false) {
+      const fileBuffer = await fs.readFile(result.outputPath);
+      buffer = new Uint8Array(fileBuffer);
+      if (!keepOutputOnDisk) {
+        shouldCleanupOutput = true;
+      }
+    }
+
+    if (shouldCleanupOutput) {
+      await fs.unlink(result.outputPath).catch(() => {});
+    }
+
+    return {
+      success: true,
+      jobId,
+      encoder: result.encoder,
+      durationMs: result.durationMs,
+      outputPath: keepOutputOnDisk ? result.outputPath : null,
+      buffer,
+    };
+  } catch (error) {
+    console.error('Native export failed:', error);
+    return {
+      success: false,
+      jobId,
+      error: error?.message || String(error),
+    };
+  } finally {
+    if (tempInputPath) {
+      await fs.unlink(tempInputPath).catch(() => {});
+    }
   }
 });
 
