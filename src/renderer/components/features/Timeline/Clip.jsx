@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
 
@@ -9,6 +9,9 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState(null);
   const clipRef = useRef(null);
+  const hoverTrackElementRef = useRef(null);
+  const pendingTrackIdRef = useRef(null);
+  const restoreUserSelectRef = useRef(null);
   
   const { 
     updateClip, 
@@ -23,9 +26,6 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   } = useTimelineStore();
   const isSelected = selectedClipId === clip.id;
   const clipMediaType = clip.mediaType ?? 'video';
-  const eligibleTracks = tracks.filter((track) =>
-    clipMediaType === 'audio' ? track.type === 'audio' : track.type !== 'audio'
-  );
   const parentTrack = tracks.find((track) => track.id === clip.trackId);
   const isTrackLocked = parentTrack?.isLocked ?? false;
   const isTrackVisible = parentTrack?.isVisible ?? true;
@@ -82,6 +82,58 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
     setSnapGuide(null);
     return targetPosition;
   };
+
+  const clearTrackHover = () => {
+    if (hoverTrackElementRef.current) {
+      hoverTrackElementRef.current.classList.remove('clip-drop-target');
+      hoverTrackElementRef.current = null;
+    }
+    pendingTrackIdRef.current = null;
+  };
+
+  const disableGlobalUserSelect = () => {
+    if (typeof document === 'undefined') return;
+    if (restoreUserSelectRef.current) return;
+    const previous = document.body.style.userSelect;
+    restoreUserSelectRef.current = () => {
+      document.body.style.userSelect = previous;
+      restoreUserSelectRef.current = null;
+    };
+    document.body.style.userSelect = 'none';
+  };
+
+  const restoreGlobalUserSelect = () => {
+    if (restoreUserSelectRef.current) {
+      restoreUserSelectRef.current();
+    }
+  };
+
+  const setTrackHover = (trackId) => {
+    if (pendingTrackIdRef.current === trackId) {
+      return;
+    }
+    if (!trackId) {
+      clearTrackHover();
+      return;
+    }
+    const trackElement = document.querySelector(`[data-track-id="${trackId}"]`);
+    if (!trackElement) {
+      clearTrackHover();
+      return;
+    }
+    clearTrackHover();
+    trackElement.classList.add('clip-drop-target');
+    hoverTrackElementRef.current = trackElement;
+    pendingTrackIdRef.current = trackId;
+  };
+
+  useEffect(() => () => {
+    clearTrackHover();
+    if (clipRef.current) {
+      clipRef.current.style.pointerEvents = '';
+    }
+    restoreGlobalUserSelect();
+  }, []);
   
   const handleMouseDown = (e) => {
     if (e.target.classList.contains('trim-handle')) {
@@ -96,6 +148,10 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
       return;
     }
     setIsDragging(true);
+    if (clipRef.current) {
+      clipRef.current.style.pointerEvents = 'none';
+    }
+    disableGlobalUserSelect();
     
     const startX = e.clientX;
     const startStart = clip.start;
@@ -127,13 +183,56 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
       const snappedEnd = snappedStart + durationSec;
 
       updateClip(clip.id, { start: snappedStart, end: snappedEnd });
+
+      const elements = document.elementsFromPoint(e.clientX, e.clientY);
+      let nextTrackId = null;
+      for (const element of elements) {
+        if (!element) continue;
+        const trackElement = typeof element.closest === 'function' ? element.closest('[data-track-id]') : null;
+        if (trackElement && trackElement.dataset && trackElement.dataset.trackId) {
+          const candidateId = trackElement.dataset.trackId;
+          if (candidateId === clip.trackId) {
+            nextTrackId = null;
+            break;
+          }
+          const targetTrack = tracks.find((track) => track.id === candidateId);
+          if (!targetTrack) {
+            continue;
+          }
+          const isCompatible = clipMediaType === 'audio' ? targetTrack.type === 'audio' : targetTrack.type !== 'audio';
+          const isLockedTarget = targetTrack.isLocked;
+          if (!isCompatible || isLockedTarget) {
+            nextTrackId = null;
+            break;
+          }
+          nextTrackId = candidateId;
+          break;
+        }
+      }
+
+      if (!nextTrackId) {
+        if (pendingTrackIdRef.current) {
+          clearTrackHover();
+        }
+      } else {
+        setTrackHover(nextTrackId);
+      }
     };
     
     const handleMouseUp = () => {
       setIsDragging(false);
       setSnapGuide(null);
+      const targetTrackId = pendingTrackIdRef.current;
+      clearTrackHover();
+      if (clipRef.current) {
+        clipRef.current.style.pointerEvents = '';
+      }
+      restoreGlobalUserSelect();
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      if (targetTrackId && targetTrackId !== clip.trackId) {
+        moveClipToTrack(clip.id, targetTrackId);
+      }
     };
     
     document.addEventListener('mousemove', handleMouseMove);
@@ -175,10 +274,12 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
     
     const handleMouseUp = () => {
       setSnapGuide(null);
+      restoreGlobalUserSelect();
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
     
+    disableGlobalUserSelect();
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
@@ -214,12 +315,12 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
       <div
         ref={clipRef}
         className={cn(
-          'absolute top-2 bottom-2 rounded-md border-2 transition-all group',
+          'absolute top-2 bottom-2 rounded-md border-2 transition-colors group',
           'bg-gradient-to-r from-blue-600/80 to-purple-600/80',
           isSelected && 'ring-2 ring-indigo-400 border-indigo-400 z-10',
           !isSelected && 'border-transparent',
           isHovered && 'shadow-lg',
-          isDragging && 'scale-105 z-20',
+          isDragging && 'z-20',
           snapGuide && 'ring-1 ring-yellow-400',
           isTrackLocked ? 'cursor-not-allowed opacity-70 border-dashed border-indigo-400/60' : 'cursor-move',
           !isTrackVisible && 'opacity-40',
@@ -248,22 +349,6 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
           {clip.name}
         </div>
 
-        {eligibleTracks.length > 0 && (
-          <select
-            className="absolute top-2 right-2 text-[10px] uppercase tracking-wide bg-black/50 text-white border border-white/20 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            value={clip.trackId}
-            onChange={handleTrackChange}
-            onClick={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            {eligibleTracks.map((trackOption) => (
-              <option key={trackOption.id} value={trackOption.id}>
-                {trackOption.name}
-              </option>
-            ))}
-          </select>
-        )}
-        
         {/* Trim Handles */}
         {(isSelected || isHovered) && (
           <>

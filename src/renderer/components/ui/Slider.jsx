@@ -1,27 +1,40 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { cn } from '@/lib/utils';
 
-export function Slider({ 
-  value = [0], 
+const sizeStyles = {
+  md: {
+    container: 'gap-3',
+    track: 'h-2',
+    value: 'text-sm',
+  },
+  sm: {
+    container: 'gap-2',
+    track: 'h-1',
+    value: 'text-xs',
+  },
+};
+
+export function Slider({
+  value = [0],
   onChange,
-  onValueChange, 
-  min = 0, 
-  max = 100, 
+  onValueChange,
+  min = 0,
+  max = 100,
   step = 1,
   showValue = false,
   className,
-  ...props 
+  size = 'md',
+  ...props
 }) {
-  const [isDragging, setIsDragging] = useState(false);
-  
-  // Support both single value and array of values
+  const styles = sizeStyles[size] ?? sizeStyles.md;
+
   const actualValue = Array.isArray(value) ? value[0] : value;
   const percentage = ((actualValue - min) / (max - min)) * 100;
-  
+
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      <div className="flex-1 relative h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div 
+    <div className={cn('flex items-center', styles.container, className)}>
+      <div className={cn('flex-1 relative bg-zinc-800 rounded-full overflow-hidden', styles.track)}>
+        <div
           className="absolute left-0 top-0 h-full bg-indigo-600 transition-all"
           style={{ width: `${percentage}%` }}
         />
@@ -39,14 +52,12 @@ export function Slider({
               onChange(newValue);
             }
           }}
-          className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
-          onMouseDown={() => setIsDragging(true)}
-          onMouseUp={() => setIsDragging(false)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           {...props}
         />
       </div>
       {showValue && (
-        <div className="text-sm text-zinc-400 min-w-[3rem] text-right">
+        <div className={cn('text-zinc-400 min-w-[3rem] text-right', styles.value)}>
           {actualValue}
         </div>
       )}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Switch } from '../../ui/Switch';
 import { Slider } from '../../ui/Slider';
-import { Code, HardDrive, RefreshCw } from 'lucide-react';
+import { Code } from 'lucide-react';
 import { Button } from '../../ui/Button';
 
 export function AdvancedSettings() {
@@ -10,37 +10,63 @@ export function AdvancedSettings() {
   const [maxCacheSize, setMaxCacheSize] = useState(5);
 
   return (
-    <div className="space-y-4">
-      {/* App Behavior */}
-      <div>
-        <h4 className="text-xs font-medium text-zinc-300 mb-2">App Behavior</h4>
-        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
+    <div className="space-y-3">
+      <header className="flex items-center gap-2 border-b border-white/10 pb-2">
+        <Code className="h-4 w-4 text-indigo-400" aria-hidden="true" />
+        <h3 className="text-sm font-semibold text-zinc-100">Advanced</h3>
+      </header>
+
+      <section className="space-y-2 first:border-none first:pt-0 border-t border-white/5 pt-2">
+        <h4 className="text-xs font-medium text-zinc-300">App Behavior</h4>
+        <div className="space-y-2">
           <div>
-            <label className="text-xs text-zinc-400 mb-2 block">Auto-save Interval: {autosave} minutes</label>
-            <Slider value={[autosave]} min={1} max={60} step={1} onValueChange={([val]) => setAutosave(val)} />
+            <label className="text-xs text-zinc-400 mb-1 block">Auto-save Interval: {autosave} minutes</label>
+            <Slider
+              value={[autosave]}
+              min={1}
+              max={60}
+              step={1}
+              onValueChange={([val]) => setAutosave(val)}
+              size="sm"
+            />
           </div>
           <div>
-            <label className="text-xs text-zinc-400 mb-2 block">Max Undo History: {maxUndo}</label>
-            <Slider value={[maxUndo]} min={5} max={100} step={5} onValueChange={([val]) => setMaxUndo(val)} />
+            <label className="text-xs text-zinc-400 mb-1 block">Max Undo History: {maxUndo}</label>
+            <Slider
+              value={[maxUndo]}
+              min={5}
+              max={100}
+              step={5}
+              onValueChange={([val]) => setMaxUndo(val)}
+              size="sm"
+            />
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-300">Enable Analytics</span>
-            <Switch checked={false} onChange={() => {}} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-300">Crash Reporting</span>
-            <Switch checked={true} onChange={() => {}} />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between border border-white/10 rounded px-2 py-1">
+              <span className="text-xs text-zinc-300">Enable Analytics</span>
+              <Switch checked={false} onChange={() => {}} size="sm" />
+            </div>
+            <div className="flex items-center justify-between border border-white/10 rounded px-2 py-1">
+              <span className="text-xs text-zinc-300">Crash Reporting</span>
+              <Switch checked={true} onChange={() => {}} size="sm" />
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Storage */}
-      <div>
-        <h4 className="text-xs font-medium text-zinc-300 mb-2">Storage</h4>
-        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
+      <section className="space-y-2 border-t border-white/5 pt-2">
+        <h4 className="text-xs font-medium text-zinc-300">Storage</h4>
+        <div className="space-y-2">
           <div>
-            <label className="text-xs text-zinc-400 mb-2 block">Max Cache Size: {maxCacheSize} GB</label>
-            <Slider value={[maxCacheSize]} min={1} max={50} step={1} onValueChange={([val]) => setMaxCacheSize(val)} />
+            <label className="text-xs text-zinc-400 mb-1 block">Max Cache Size: {maxCacheSize} GB</label>
+            <Slider
+              value={[maxCacheSize]}
+              min={1}
+              max={50}
+              step={1}
+              onValueChange={([val]) => setMaxCacheSize(val)}
+              size="sm"
+            />
           </div>
           <div className="flex items-center gap-2">
             <Button variant="secondary" className="flex-1" size="sm">
@@ -51,19 +77,18 @@ export function AdvancedSettings() {
             </Button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Updates */}
-      <div>
-        <h4 className="text-xs font-medium text-zinc-300 mb-2">Updates</h4>
-        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
+      <section className="space-y-2 border-t border-white/5 pt-2">
+        <h4 className="text-xs font-medium text-zinc-300">Updates</h4>
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Auto-update</span>
-            <Switch checked={true} onChange={() => {}} />
+            <Switch checked={true} onChange={() => {}} size="sm" />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-1 block">Update Channel</label>
-            <select className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm">
+            <select className="w-full bg-zinc-800 border border-white/10 rounded px-2 py-1 text-[11px]">
               <option>Stable</option>
               <option>Beta</option>
             </select>
@@ -72,25 +97,22 @@ export function AdvancedSettings() {
             Check for Updates
           </Button>
         </div>
-      </div>
+      </section>
 
-      {/* Settings Management */}
-      <div>
-        <h4 className="text-xs font-medium text-zinc-300 mb-2">Settings Management</h4>
-        <div className="bg-zinc-900/50 rounded-lg p-3">
-          <div className="flex items-center gap-1">
-            <Button variant="secondary" className="flex-1" size="sm">
-              Reset to Defaults
-            </Button>
-            <Button variant="ghost" className="flex-1" size="sm">
-              Export Settings
-            </Button>
-            <Button variant="ghost" className="flex-1" size="sm">
-              Import Settings
-            </Button>
-          </div>
+      <section className="space-y-2 border-t border-white/5 pt-2">
+        <h4 className="text-xs font-medium text-zinc-300">Settings Management</h4>
+        <div className="flex items-center gap-1">
+          <Button variant="secondary" className="flex-1" size="sm">
+            Reset to Defaults
+          </Button>
+          <Button variant="ghost" className="flex-1" size="sm">
+            Export Settings
+          </Button>
+          <Button variant="ghost" className="flex-1" size="sm">
+            Import Settings
+          </Button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

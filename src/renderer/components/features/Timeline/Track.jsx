@@ -89,6 +89,7 @@ export function Track({
           ? 'bg-indigo-900/30 ring-1 ring-indigo-400'
           : 'hover:bg-zinc-800/30'
       )}
+      data-track-id={track.id}
       style={{ height: `${trackHeightPx}px` }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
