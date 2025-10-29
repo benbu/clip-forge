@@ -94,10 +94,10 @@ export function VideoPlayer() {
   const rafRef = useRef(null);
   const lastUpdateTimeRef = useRef(0);
   const seekRafRef = useRef(null);
-  const selectedFile = useMediaStore((state) => state.selectedFile);
+  const previousVideoSrcRef = useRef(null);
+  const previousTransitionVideoSrcRef = useRef(null);
   const selectedFileData = useMediaStore((state) => state.selectedFileData);
   const setFileBlobUrl = useMediaStore((state) => state.setFileBlobUrl);
-  const selectFile = useMediaStore((state) => state.selectFile);
   const fileBlobUrls = useMediaStore((state) => state.fileBlobUrls);
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const setPlayheadPosition = useTimelineStore((state) => state.setPlayheadPosition);
@@ -186,6 +186,45 @@ export function VideoPlayer() {
     );
   }, [previousClip, clipAtPlayhead, transitionsByPair]);
 
+  const timelineDuration = useMemo(() => {
+    if (!Array.isArray(clips) || clips.length === 0) {
+      return 0;
+    }
+    return clips.reduce((maxEnd, clip) => {
+      const start = Number(clip?.start) || 0;
+      const end = Number.isFinite(clip?.end)
+        ? Number(clip.end)
+        : start + (Number(clip?.duration) || 0);
+      if (!Number.isFinite(end)) {
+        return maxEnd;
+      }
+      return Math.max(maxEnd, end);
+    }, 0);
+  }, [clips]);
+
+  const convertTimelineToClipTime = useCallback((timelineTime, clip) => {
+    if (!clip) return 0;
+    const clipStart = Number(clip.start) || 0;
+    const clipDuration = Number.isFinite(clip.duration)
+      ? Math.max(0, Number(clip.duration))
+      : Math.max(0, (Number(clip.end) || clipStart) - clipStart);
+    const sourceIn = Number(clip.sourceIn) || 0;
+    const offset = Math.max(0, Math.min(clipDuration, timelineTime - clipStart));
+    return sourceIn + offset;
+  }, []);
+
+  const convertClipTimeToTimeline = useCallback((clip, clipTime) => {
+    if (!clip) return clipTime;
+    const clipStart = Number(clip.start) || 0;
+    const clipDuration = Number.isFinite(clip.duration)
+      ? Math.max(0, Number(clip.duration))
+      : Math.max(0, (Number(clip.end) || clipStart) - clipStart);
+    const sourceIn = Number(clip.sourceIn) || 0;
+    const normalized = Math.max(0, clipTime - sourceIn);
+    const clamped = Math.min(clipDuration, normalized);
+    return clipStart + clamped;
+  }, []);
+
   const transitionContext = useMemo(() => {
     if (playbackSource !== 'timeline') {
       return { active: false };
@@ -215,6 +254,18 @@ export function VideoPlayer() {
     };
   }, [playbackSource, previousClip, clipAtPlayhead, transitionBetweenClips, playheadPosition]);
 
+  const clipAtPlayheadRef = useRef(clipAtPlayhead);
+
+  useEffect(() => {
+    clipAtPlayheadRef.current = clipAtPlayhead;
+  }, [clipAtPlayhead]);
+
+  useEffect(() => {
+    if (playbackSource === 'timeline') {
+      setDuration(timelineDuration);
+    }
+  }, [playbackSource, timelineDuration, setDuration]);
+
   const ensureBlobUrlForFile = useCallback(
     (file) => {
       if (!file?.id) return null;
@@ -235,40 +286,53 @@ export function VideoPlayer() {
     [fileBlobUrls, setFileBlobUrl]
   );
 
-  // Auto-select clip media when the playhead moves across the timeline (timeline mode only)
-  useEffect(() => {
-    if (!clips?.length) return;
-    if (playbackSource !== 'timeline') return;
-
-    const clipAtPlayhead = clips.find(
-      (clip) => playheadPosition >= clip.start && playheadPosition <= clip.end
-    );
-
-    // Only switch if we're actually on a different clip's media
-    if (clipAtPlayhead?.mediaFileId && clipAtPlayhead.mediaFileId !== selectedFile) {
-      selectFile(clipAtPlayhead.mediaFileId);
-    }
-  }, [clips, playheadPosition, selectFile, selectedFile, playbackSource]);
-  
   // Resolve current primary video source based on playback mode
   useEffect(() => {
+    // Clean up previous blob URL if it was a blob URL
+    const prevSrc = previousVideoSrcRef.current;
+    if (prevSrc && prevSrc.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(prevSrc);
+      } catch (err) {
+        // Ignore errors from already-revoked URLs
+      }
+    }
+
+    let newSrc = null;
     if (playbackSource === 'timeline') {
       if (!clipAtPlayhead) {
         setVideoSrc(null);
+        previousVideoSrcRef.current = null;
         return;
       }
       const mediaFile = mediaFilesById.get(clipAtPlayhead.mediaFileId);
       const url = ensureBlobUrlForFile(mediaFile);
-      setVideoSrc(url || null);
-      return;
+      newSrc = url || null;
+    } else {
+      if (selectedFileData) {
+        const url = ensureBlobUrlForFile(selectedFileData);
+        newSrc = url || null;
+      } else {
+        newSrc = null;
+      }
     }
 
-    if (selectedFileData) {
-      const url = ensureBlobUrlForFile(selectedFileData);
-      setVideoSrc(url || null);
-    } else {
-      setVideoSrc(null);
+    // Only update if different (avoid unnecessary re-renders)
+    if (newSrc !== prevSrc) {
+      setVideoSrc(newSrc);
+      previousVideoSrcRef.current = newSrc;
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (previousVideoSrcRef.current && previousVideoSrcRef.current.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(previousVideoSrcRef.current);
+        } catch (err) {
+          // Ignore errors from already-revoked URLs
+        }
+      }
+    };
   }, [
     playbackSource,
     clipAtPlayhead,
@@ -279,13 +343,42 @@ export function VideoPlayer() {
 
   // Prepare secondary video source when a transition is active
   useEffect(() => {
+    // Clean up previous transition blob URL if it was a blob URL
+    const prevSrc = previousTransitionVideoSrcRef.current;
+    if (prevSrc && prevSrc.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(prevSrc);
+      } catch (err) {
+        // Ignore errors from already-revoked URLs
+      }
+    }
+
     if (!transitionContext.active) {
       setTransitionVideoSrc(null);
+      previousTransitionVideoSrcRef.current = null;
       return;
     }
+
     const mediaFile = mediaFilesById.get(transitionContext.previousClip?.mediaFileId);
     const url = ensureBlobUrlForFile(mediaFile);
-    setTransitionVideoSrc(url || null);
+    const newSrc = url || null;
+
+    // Only update if different
+    if (newSrc !== prevSrc) {
+      setTransitionVideoSrc(newSrc);
+      previousTransitionVideoSrcRef.current = newSrc;
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (previousTransitionVideoSrcRef.current && previousTransitionVideoSrcRef.current.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(previousTransitionVideoSrcRef.current);
+        } catch (err) {
+          // Ignore errors from already-revoked URLs
+        }
+      }
+    };
   }, [transitionContext, mediaFilesById, ensureBlobUrlForFile]);
   
   // Update video element when state changes
@@ -313,9 +406,29 @@ export function VideoPlayer() {
     if (!primary) return;
 
     if (isPlaying) {
-      primary.play().catch((err) => console.error('Play error:', err));
+      primary.play().catch((err) => {
+        console.error('Primary video play error:', err);
+        if (window?.electronAPI?.logMessage) {
+          window.electronAPI.logMessage({
+            level: 'error',
+            scope: 'player',
+            message: 'Primary video play failed',
+            stack: err?.stack || String(err),
+          });
+        }
+      });
       if (secondary && transitionContext.active) {
-        secondary.play().catch(() => {});
+        secondary.play().catch((err) => {
+          console.error('Secondary video play error:', err);
+          if (window?.electronAPI?.logMessage) {
+            window.electronAPI.logMessage({
+              level: 'error',
+              scope: 'player',
+              message: 'Secondary video play failed',
+              stack: err?.stack || String(err),
+            });
+          }
+        });
       } else if (secondary) {
         secondary.pause();
       }
@@ -335,7 +448,17 @@ export function VideoPlayer() {
     // While playing and not scrubbing, the video element is the source of truth.
     if (isPlaying && !isScrubbing) return;
 
-    if (Math.abs(video.currentTime - playheadPosition) < 0.01) return;
+    const targetClip = clipAtPlayhead;
+    const targetTime = convertTimelineToClipTime(playheadPosition, targetClip);
+    if (!Number.isFinite(targetTime)) return;
+
+    if (Math.abs(video.currentTime - targetTime) < 0.01) {
+      if (seekRafRef.current) {
+        cancelAnimationFrame(seekRafRef.current);
+        seekRafRef.current = null;
+      }
+      return;
+    }
     
     // Cancel any pending seek
     if (seekRafRef.current) {
@@ -344,10 +467,15 @@ export function VideoPlayer() {
     
     // Schedule seek for next frame
     seekRafRef.current = requestAnimationFrame(() => {
-      video.currentTime = playheadPosition;
+      try {
+        video.currentTime = targetTime;
+      } catch (error) {
+        // Ignore seek errors while metadata is still loading
+      }
       seek(playheadPosition);
+      seekRafRef.current = null;
     });
-  }, [playheadPosition, seek, playbackSource, isPlaying, isScrubbing]);
+  }, [playheadPosition, seek, playbackSource, isPlaying, isScrubbing, clipAtPlayhead, convertTimelineToClipTime]);
   
   // Update currentTime from video element with throttling
   useEffect(() => {
@@ -368,38 +496,46 @@ export function VideoPlayer() {
         }
         
         rafRef.current = requestAnimationFrame(() => {
-          seek(current);
           if (playbackSource === 'timeline') {
-            if (isPlaying && !isScrubbing) {
-              setPlayheadPosition(current);
+            const activeClip = clipAtPlayheadRef.current;
+            const timelineTime = convertClipTimeToTimeline(activeClip, current);
+            const hasValidTimelineTime = Number.isFinite(timelineTime);
+
+            if (hasValidTimelineTime) {
+              seek(timelineTime);
+              if (isPlaying && !isScrubbing) {
+                setPlayheadPosition(timelineTime);
+              }
+            } else {
+              seek(current);
             }
-            // Stop playback at end of timeline clips (only relevant when playing)
-            if (isPlaying && clips && clips.length > 0) {
-              const timelineEnd = Math.max(
-                ...clips.map((clip) =>
-                  (clip.end != null)
-                    ? clip.end
-                    : (clip.start ?? 0) + (clip.duration ?? 0)
-                )
-              );
-              if (Number.isFinite(timelineEnd) && current >= (timelineEnd - 0.01)) {
-                // Clamp to end and pause
-                video.pause();
-                pause();
-                const endTime = Math.max(0, timelineEnd);
-                if (Math.abs(current - endTime) > 0.01) {
-                  seek(endTime);
-                  setPlayheadPosition(endTime);
-                }
+
+            if (
+              isPlaying &&
+              hasValidTimelineTime &&
+              Number.isFinite(timelineDuration) &&
+              timelineDuration > 0 &&
+              timelineTime >= (timelineDuration - 0.01)
+            ) {
+              video.pause();
+              pause();
+              const endTime = Math.max(0, timelineDuration);
+              if (Math.abs(timelineTime - endTime) > 0.01) {
+                seek(endTime);
+                setPlayheadPosition(endTime);
               }
             }
+          } else {
+            seek(current);
           }
         });
       }
     };
     
     const handleLoadedMetadata = () => {
-      setDuration(video.duration);
+      if (playbackSource !== 'timeline') {
+        setDuration(video.duration);
+      }
     };
     
     video.addEventListener('timeupdate', handleTimeUpdate);
@@ -417,7 +553,7 @@ export function VideoPlayer() {
         cancelAnimationFrame(seekRafRef.current);
       }
     };
-  }, [seek, setPlayheadPosition, setDuration, playbackSource]);
+  }, [seek, setPlayheadPosition, setDuration, playbackSource, isPlaying, isScrubbing, pause, convertClipTimeToTimeline, timelineDuration]);
 
   useEffect(() => {
     if (!transitionContext.active) {
@@ -465,20 +601,40 @@ export function VideoPlayer() {
         0,
         (previousClip?.end ?? 0) - (previousClip?.start ?? 0)
       );
+    const sourceIn = Number(previousClip?.sourceIn) ?? 0;
     const sourceOut = Number(previousClip?.sourceOut);
-    const sourceEnd = Number.isFinite(sourceOut) ? sourceOut : clipDuration;
-    const targetTime = Math.max(0, sourceEnd - duration + transitionOffset);
+    const sourceDuration = Number.isFinite(sourceOut) 
+      ? sourceOut - sourceIn 
+      : clipDuration;
+    const transitionStartTime = Math.max(sourceIn, sourceIn + sourceDuration - duration);
+    const targetTime = Math.max(sourceIn, transitionStartTime + transitionOffset);
+    
+    // Clamp to valid range
+    const clampedTargetTime = Math.min(
+      Number.isFinite(sourceOut) ? sourceOut : sourceIn + sourceDuration,
+      Math.max(sourceIn, targetTime)
+    );
 
-    if (Math.abs(secondary.currentTime - targetTime) > 0.05) {
+    if (secondary.readyState >= 2 && Math.abs(secondary.currentTime - clampedTargetTime) > 0.05) {
       try {
-        secondary.currentTime = targetTime;
+        secondary.currentTime = clampedTargetTime;
       } catch {
         // Secondary clip may not be ready yet; ignore seek errors.
       }
     }
 
     if (isPlaying) {
-      secondary.play().catch(() => {});
+      secondary.play().catch((err) => {
+        console.error('Secondary video play error during transition:', err);
+        if (window?.electronAPI?.logMessage) {
+          window.electronAPI.logMessage({
+            level: 'error',
+            scope: 'player',
+            message: 'Secondary video play failed during transition',
+            stack: err?.stack || String(err),
+          });
+        }
+      });
     }
 
     const primary = primaryVideoRef.current;
@@ -601,7 +757,7 @@ export function VideoPlayer() {
           <video
             ref={transitionVideoRef}
             src={transitionVideoSrc || undefined}
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-all duration-150 ease-out"
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-all duration-150 ease-out z-0"
             style={secondaryVideoStyle}
             preload="auto"
             playsInline
@@ -610,7 +766,7 @@ export function VideoPlayer() {
         <video
           ref={primaryVideoRef}
           src={videoSrc || undefined}
-          className="relative w-full h-full object-contain transition-all duration-150 ease-out"
+          className="absolute inset-0 w-full h-full object-contain transition-all duration-150 ease-out z-10"
           style={primaryVideoStyle}
           preload="auto"
           playsInline
@@ -619,7 +775,7 @@ export function VideoPlayer() {
         </video>
         {blackOverlayOpacity > 0 && (
           <div
-            className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-150 ease-out"
+            className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-150 ease-out z-20"
             style={{ opacity: blackOverlayOpacity }}
           />
         )}
@@ -680,7 +836,7 @@ export function VideoPlayer() {
       )}
       
       {/* Placeholder */}
-      {!selectedFile && (
+      {!videoSrc && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-950 pointer-events-none">
           <div className="text-center">
             <div className="text-6xl mb-4">🎬</div>

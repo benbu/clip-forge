@@ -10,6 +10,7 @@ export const ClipDetailDrawer = forwardRef(function ClipDetailDrawer({ file, onC
   const tracks = useTimelineStore((state) => state.tracks);
   const updateClip = useTimelineStore((state) => state.updateClip);
   const renameFile = useMediaStore((s) => s.renameFile);
+  const clearMediaSelection = useMediaStore((s) => s.clearSelection);
   const [name, setName] = useState(file?.name || '');
   const [isSaving, setIsSaving] = useState(false);
   const [position, setPosition] = useState({ top: 80, left: 80 });
@@ -160,6 +161,13 @@ export const ClipDetailDrawer = forwardRef(function ClipDetailDrawer({ file, onC
     }
   };
 
+  const handleCloseDrawer = () => {
+    clearMediaSelection();
+    if (onClose && onClose !== clearMediaSelection) {
+      onClose();
+    }
+  };
+
   if (!file) return null;
 
   const content = (
@@ -171,7 +179,7 @@ export const ClipDetailDrawer = forwardRef(function ClipDetailDrawer({ file, onC
     >
       <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-white/5">
         <h3 className="text-xs uppercase font-semibold tracking-wide text-zinc-300">Clip Details</h3>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" variant="ghost" onClick={handleCloseDrawer}>
           Close
         </Button>
       </div>

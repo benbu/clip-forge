@@ -3,6 +3,21 @@
  */
 
 /**
+ * Safely revoke a blob URL if it's a valid blob URL
+ * @param {string} url - The URL to revoke
+ */
+function safeRevokeBlobURL(url) {
+  if (!url || typeof url !== 'string') return;
+  if (!url.startsWith('blob:')) return;
+  
+  try {
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    // Ignore errors from already-revoked URLs or invalid URLs
+  }
+}
+
+/**
  * Format file size to human-readable string
  */
 export function formatFileSize(bytes) {
@@ -36,9 +51,11 @@ export async function extractVideoMetadata(file) {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
     video.preload = 'metadata';
+    let blobUrl = null;
     
     video.onloadedmetadata = () => {
-      window.URL.revokeObjectURL(video.src);
+      safeRevokeBlobURL(video.src);
+      blobUrl = null;
       
       resolve({
         duration: video.duration,
@@ -48,11 +65,13 @@ export async function extractVideoMetadata(file) {
     };
     
     video.onerror = (e) => {
-      window.URL.revokeObjectURL(video.src);
+      safeRevokeBlobURL(video.src);
+      blobUrl = null;
       reject(new Error('Failed to load video metadata'));
     };
     
-    video.src = URL.createObjectURL(file);
+    blobUrl = URL.createObjectURL(file);
+    video.src = blobUrl;
   });
 }
 

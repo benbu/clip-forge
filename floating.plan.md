@@ -16,3 +16,5 @@
 - [x] Clear media library selection when timeline clips are selected
 - [x] Clear media library selection when dragging clips to timeline
 - [x] Fix popup positioning to stay within viewport bounds
+- [x] Prevent timeline clip selection from auto-selecting media library items
+- [x] Keep timeline scrubbing responsive without media library coupling
