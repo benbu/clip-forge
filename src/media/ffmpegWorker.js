@@ -248,6 +248,42 @@ const normalizeOverlayKeyframes = (keyframes, duration, defaults = {}) => {
   });
 };
 
+const MIN_XFADE_DURATION = 0.1;
+
+const mapTransitionVideoFilter = (type) => {
+  switch ((type || '').toLowerCase()) {
+    case 'dip-to-black':
+    case 'dip_to_black':
+    case 'fadeblack':
+      return 'fadeblack';
+    case 'slide':
+    case 'slide-left':
+    case 'slideleft':
+      return 'slideleft';
+    case 'crossfade':
+    case 'fade':
+    default:
+      return 'fade';
+  }
+};
+
+const mapAudioCurveForEasing = (easing) => {
+  switch ((easing || '').toLowerCase()) {
+    case 'ease-in':
+    case 'ease_in':
+      return { c1: 'sin', c2: 'sin' };
+    case 'ease-out':
+    case 'ease_out':
+      return { c1: 'exp', c2: 'exp' };
+    case 'linear':
+      return { c1: 'tri', c2: 'tri' };
+    case 'ease-in-out':
+    case 'ease':
+    default:
+      return { c1: 'tri', c2: 'tri' };
+  }
+};
+
 const computeOverlayPosition = (
   overlay,
   overlayWidth,
@@ -710,38 +746,245 @@ export async function concatenateClips(clips, outputName = 'output.mp4') {
   const instance = await getFFmpeg();
   const outputFile = outputName;
   const preparedClips = [];
-  const concatListName = 'concat.txt';
+  const tempArtifacts = new Set();
+
+  const readDuration = (clip = {}) => {
+    const explicit = Number(clip.duration);
+    if (Number.isFinite(explicit)) {
+      return Math.max(0, explicit);
+    }
+    const start = Number.isFinite(clip.start) ? clip.start : 0;
+    const end = Number.isFinite(clip.end) ? clip.end : start;
+    return Math.max(0, end - start);
+  };
+
+  const xfadeMerge = async (currentPath, currentDuration, nextPath, nextDuration, transition, index) => {
+    const transitionDuration = Math.min(
+      Math.max(MIN_XFADE_DURATION, Number(transition?.duration) || MIN_XFADE_DURATION),
+      Math.max(MIN_XFADE_DURATION, currentDuration),
+      Math.max(MIN_XFADE_DURATION, nextDuration)
+    );
+
+    if (!Number.isFinite(transitionDuration) || transitionDuration < MIN_XFADE_DURATION) {
+      return null;
+    }
+
+    const offset = Math.max(0, currentDuration - transitionDuration);
+    const transitionName = mapTransitionVideoFilter(transition?.type);
+    const audioCurve = mapAudioCurveForEasing(transition?.easing);
+
+    const filterVideo = `[0:v][1:v]xfade=transition=${transitionName}:duration=${transitionDuration.toFixed(
+      3
+    )}:offset=${offset.toFixed(3)}[v]`;
+    const filterAudio = `[0:a][1:a]acrossfade=d=${transitionDuration.toFixed(
+      3
+    )}:c1=${audioCurve.c1}:c2=${audioCurve.c2}[a]`;
+
+    const resultName = `xfade_result_${index}.mp4`;
+    const commandBase = [
+      '-i',
+      currentPath,
+      '-i',
+      nextPath,
+      '-filter_complex',
+      `${filterVideo};${filterAudio}`,
+      '-map',
+      '[v]',
+      '-map',
+      '[a]',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '20',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '192k',
+      '-movflags',
+      'faststart',
+      resultName,
+    ];
+
+    try {
+      await runCommand(instance, commandBase);
+      return {
+        path: resultName,
+        duration: currentDuration + nextDuration - transitionDuration,
+      };
+    } catch (error) {
+      console.warn('Video+audio crossfade failed, falling back to video-only xfade', error);
+      await safeDelete(instance, resultName);
+    }
+
+    const videoOnlyName = `xfade_result_video_${index}.mp4`;
+    const videoOnlyCommand = [
+      '-i',
+      currentPath,
+      '-i',
+      nextPath,
+      '-filter_complex',
+      filterVideo,
+      '-map',
+      '[v]',
+      '-map',
+      '0:a?',
+      '-map',
+      '1:a?',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '20',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '192k',
+      '-movflags',
+      'faststart',
+      videoOnlyName,
+    ];
+
+    try {
+      await runCommand(instance, videoOnlyCommand);
+      return {
+        path: videoOnlyName,
+        duration: currentDuration + nextDuration - transitionDuration,
+      };
+    } catch (err) {
+      console.warn('Video-only crossfade failed; falling back to hard cut concatenation', err);
+      await safeDelete(instance, videoOnlyName);
+      return null;
+    }
+  };
 
   try {
     for (let i = 0; i < clips.length; i += 1) {
       const prepared = await prepareClip(instance, clips[i], i);
-      preparedClips.push(prepared);
+      preparedClips.push({ path: prepared, clip: clips[i] });
     }
 
-    const concatContent = preparedClips.map((name) => `file '${name}'`).join('\n');
-    await instance.writeFile(concatListName, concatContent);
+    if (preparedClips.length === 0) {
+      throw new Error('No clips provided for concatenation');
+    }
 
-    await runCommand(instance, [
-      '-f',
-      'concat',
-      '-safe',
-      '0',
-      '-i',
-      concatListName,
-      '-c',
-      'copy',
-      outputFile,
-    ]);
+    let workingPath = preparedClips[0].path;
+    let workingDuration = readDuration(preparedClips[0].clip);
+
+    for (let i = 1; i < preparedClips.length; i += 1) {
+      const prevEntry = preparedClips[i - 1];
+      const nextEntry = preparedClips[i];
+      const nextDuration = readDuration(nextEntry.clip);
+
+      const transition =
+        prevEntry.clip?.transitionOut?.toClipId === nextEntry.clip?.id
+          ? prevEntry.clip.transitionOut
+          : null;
+
+      let merged = null;
+      if (transition && Number(transition.duration) > MIN_XFADE_DURATION) {
+        merged = await xfadeMerge(
+          workingPath,
+          workingDuration,
+          nextEntry.path,
+          nextDuration,
+          transition,
+          i
+        );
+      }
+
+      if (merged) {
+        tempArtifacts.add(workingPath);
+        tempArtifacts.add(nextEntry.path);
+        workingPath = merged.path;
+        workingDuration = merged.duration;
+        continue;
+      }
+
+      const concatListName = `concat_pair_${i}.txt`;
+      const concatOutput = `concat_result_${i}.mp4`;
+      const concatContent = `file '${workingPath}'\nfile '${nextEntry.path}'\n`;
+      await instance.writeFile(concatListName, concatContent);
+
+      try {
+        await runCommand(instance, [
+          '-f',
+          'concat',
+          '-safe',
+          '0',
+          '-i',
+          concatListName,
+          '-c',
+          'copy',
+          concatOutput,
+        ]);
+        tempArtifacts.add(workingPath);
+        tempArtifacts.add(nextEntry.path);
+        tempArtifacts.add(concatListName);
+        workingPath = concatOutput;
+        workingDuration += nextDuration;
+      } catch (error) {
+        console.warn('Concat demuxer stream-copy failed; retrying with re-encode', error);
+        const fallbackName = `concat_reencode_${i}.mp4`;
+        tempArtifacts.add(concatOutput);
+        try {
+          await runCommand(instance, [
+            '-f',
+            'concat',
+            '-safe',
+            '0',
+            '-i',
+            concatListName,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'veryfast',
+            '-crf',
+            '20',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-movflags',
+            'faststart',
+            fallbackName,
+          ]);
+          tempArtifacts.add(workingPath);
+          tempArtifacts.add(nextEntry.path);
+          workingPath = fallbackName;
+          workingDuration += nextDuration;
+        } finally {
+          tempArtifacts.add(concatListName);
+        }
+      }
+    }
+
+    if (workingPath !== outputFile) {
+      await runCommand(instance, [
+        '-i',
+        workingPath,
+        '-c',
+        'copy',
+        '-movflags',
+        'faststart',
+        outputFile,
+      ]);
+      tempArtifacts.add(workingPath);
+    }
 
     return await instance.readFile(outputFile);
   } catch (error) {
     console.error('Error concatenating clips:', error);
     throw error;
   } finally {
-    for (const name of preparedClips) {
-      await safeDelete(instance, name);
+    for (const entry of preparedClips) {
+      await safeDelete(instance, entry.path);
     }
-    await safeDelete(instance, concatListName);
+    for (const artifact of tempArtifacts) {
+      await safeDelete(instance, artifact);
+    }
     await safeDelete(instance, outputFile);
   }
 }

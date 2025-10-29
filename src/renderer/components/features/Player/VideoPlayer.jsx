@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
@@ -11,8 +11,86 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { shortcuts } from '@/lib/keyboardShortcuts';
 import { sanitizeTextOverlay, interpolateTextOverlay } from '@/lib/textOverlay';
 
+const clamp01 = (value) => Math.min(Math.max(value, 0), 1);
+
+const applyEasing = (value, easing = 'ease-in-out') => {
+  const t = clamp01(value);
+  switch ((easing || '').toLowerCase()) {
+    case 'ease-in':
+    case 'ease_in':
+      return t * t;
+    case 'ease-out':
+    case 'ease_out':
+      return 1 - (1 - t) * (1 - t);
+    case 'linear':
+      return t;
+    case 'ease-in-out':
+    case 'ease_in_out':
+    default:
+      if (t < 0.5) {
+        return 2 * t * t;
+      }
+      return 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+};
+
+const buildTransitionVisual = ({ type, easing, progress }) => {
+  const eased = applyEasing(progress, easing);
+  const base = {
+    active: true,
+    primaryOpacity: 1,
+    secondaryOpacity: 0,
+    primaryTransform: 'translateX(0%)',
+    secondaryTransform: 'translateX(0%)',
+    blackOpacity: 0,
+  };
+
+  switch ((type || '').toLowerCase()) {
+    case 'dip-to-black':
+    case 'dip_to_black': {
+      if (progress < 0.5) {
+        const fadeOut = applyEasing(progress * 2, easing);
+        return {
+          ...base,
+          primaryOpacity: 0,
+          secondaryOpacity: 1 - fadeOut,
+          blackOpacity: fadeOut,
+        };
+      }
+      const fadeIn = applyEasing((progress - 0.5) * 2, easing);
+      return {
+        ...base,
+        primaryOpacity: fadeIn,
+        secondaryOpacity: 0,
+        blackOpacity: 1 - fadeIn,
+      };
+    }
+    case 'slide':
+    case 'slide-left':
+    case 'slideleft': {
+      const slide = eased;
+      return {
+        ...base,
+        primaryOpacity: 1,
+        secondaryOpacity: 1,
+        primaryTransform: `translateX(${(1 - slide) * 100}%)`,
+        secondaryTransform: `translateX(${-slide * 100}%)`,
+      };
+    }
+    case 'crossfade':
+    case 'fade':
+    default:
+      return {
+        ...base,
+        primaryOpacity: eased,
+        secondaryOpacity: 1 - eased,
+      };
+  }
+};
+
 export function VideoPlayer() {
-  const videoRef = useRef(null);
+  const primaryVideoRef = useRef(null);
+  const transitionVideoRef = useRef(null);
   const rafRef = useRef(null);
   const lastUpdateTimeRef = useRef(0);
   const seekRafRef = useRef(null);
@@ -26,6 +104,8 @@ export function VideoPlayer() {
   const isScrubbing = useTimelineStore((state) => state.isScrubbing);
   const clips = useTimelineStore((state) => state.clips);
   const tracks = useTimelineStore((state) => state.tracks);
+  const transitions = useTimelineStore((state) => state.transitions);
+  const mediaFiles = useMediaStore((state) => state.files);
   const { 
     isPlaying, 
     currentTime, 
@@ -44,6 +124,116 @@ export function VideoPlayer() {
   
   const [showControls, setShowControls] = useState(true);
   const [videoSrc, setVideoSrc] = useState(null);
+  const [transitionVideoSrc, setTransitionVideoSrc] = useState(null);
+  const [transitionVisual, setTransitionVisual] = useState({
+    active: false,
+    primaryOpacity: 1,
+    secondaryOpacity: 0,
+    primaryTransform: 'translateX(0%)',
+    secondaryTransform: 'translateX(0%)',
+    blackOpacity: 0,
+  });
+
+  const mediaFilesById = useMemo(() => {
+    const map = new Map();
+    for (const file of mediaFiles) {
+      if (file?.id) {
+        map.set(file.id, file);
+      }
+    }
+    return map;
+  }, [mediaFiles]);
+
+  const sortedTimelineClips = useMemo(() => {
+    if (!Array.isArray(clips)) return [];
+    return [...clips].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+  }, [clips]);
+
+  const clipAtPlayhead = useMemo(() => {
+    if (!sortedTimelineClips.length) return null;
+    const match = sortedTimelineClips.find(
+      (clip) =>
+        playheadPosition >= (clip.start ?? 0) &&
+        playheadPosition <= ((clip.end != null) ? clip.end : (clip.start ?? 0) + (clip.duration ?? 0))
+    );
+    if (match) return match;
+    return sortedTimelineClips[sortedTimelineClips.length - 1] ?? null;
+  }, [sortedTimelineClips, playheadPosition]);
+
+  const previousClip = useMemo(() => {
+    if (!clipAtPlayhead) return null;
+    const index = sortedTimelineClips.findIndex((clip) => clip.id === clipAtPlayhead.id);
+    if (index <= 0) return null;
+    return sortedTimelineClips[index - 1] ?? null;
+  }, [sortedTimelineClips, clipAtPlayhead]);
+
+  const transitionsByPair = useMemo(() => {
+    const map = new Map();
+    if (Array.isArray(transitions)) {
+      transitions.forEach((transition) => {
+        if (transition?.fromClipId && transition?.toClipId) {
+          map.set(`${transition.fromClipId}::${transition.toClipId}`, transition);
+        }
+      });
+    }
+    return map;
+  }, [transitions]);
+
+  const transitionBetweenClips = useMemo(() => {
+    if (!previousClip || !clipAtPlayhead) return null;
+    return (
+      transitionsByPair.get(`${previousClip.id}::${clipAtPlayhead.id}`) ?? null
+    );
+  }, [previousClip, clipAtPlayhead, transitionsByPair]);
+
+  const transitionContext = useMemo(() => {
+    if (playbackSource !== 'timeline') {
+      return { active: false };
+    }
+    if (!previousClip || !clipAtPlayhead || !transitionBetweenClips) {
+      return { active: false };
+    }
+    const duration = Math.max(0.1, Number(transitionBetweenClips.duration) || 0);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return { active: false };
+    }
+    const start = Number(clipAtPlayhead.start) || 0;
+    const rawProgress = (playheadPosition - start) / duration;
+    if (rawProgress < 0 || rawProgress > 1) {
+      return { active: false };
+    }
+
+    return {
+      active: true,
+      type: transitionBetweenClips.type || 'crossfade',
+      easing: transitionBetweenClips.easing || 'ease-in-out',
+      duration,
+      start,
+      progress: clamp01(rawProgress),
+      previousClip,
+      currentClip: clipAtPlayhead,
+    };
+  }, [playbackSource, previousClip, clipAtPlayhead, transitionBetweenClips, playheadPosition]);
+
+  const ensureBlobUrlForFile = useCallback(
+    (file) => {
+      if (!file?.id) return null;
+      const existing = fileBlobUrls[file.id];
+      if (existing) {
+        return existing;
+      }
+      if (file.originalFile instanceof Blob) {
+        const url = URL.createObjectURL(file.originalFile);
+        setFileBlobUrl(file.id, url);
+        return url;
+      }
+      if (typeof file.path === 'string') {
+        return file.path;
+      }
+      return null;
+    },
+    [fileBlobUrls, setFileBlobUrl]
+  );
 
   // Auto-select clip media when the playhead moves across the timeline (timeline mode only)
   useEffect(() => {
@@ -60,54 +250,86 @@ export function VideoPlayer() {
     }
   }, [clips, playheadPosition, selectFile, selectedFile, playbackSource]);
   
-  // Load selected file's video source
+  // Resolve current primary video source based on playback mode
   useEffect(() => {
-    if (selectedFileData?.originalFile) {
-      // Check if blob URL already exists in store
-      const existingBlobUrl = fileBlobUrls[selectedFileData.id];
-      
-      if (existingBlobUrl) {
-        setVideoSrc(existingBlobUrl);
-      } else {
-        const blobUrl = URL.createObjectURL(selectedFileData.originalFile);
-        setVideoSrc(blobUrl);
-        setFileBlobUrl(selectedFileData.id, blobUrl);
+    if (playbackSource === 'timeline') {
+      if (!clipAtPlayhead) {
+        setVideoSrc(null);
+        return;
       }
-      
-      return () => {
-        // Cleanup will be handled by the store
-      };
+      const mediaFile = mediaFilesById.get(clipAtPlayhead.mediaFileId);
+      const url = ensureBlobUrlForFile(mediaFile);
+      setVideoSrc(url || null);
+      return;
+    }
+
+    if (selectedFileData) {
+      const url = ensureBlobUrlForFile(selectedFileData);
+      setVideoSrc(url || null);
     } else {
       setVideoSrc(null);
     }
-  }, [selectedFileData, setFileBlobUrl, fileBlobUrls]);
+  }, [
+    playbackSource,
+    clipAtPlayhead,
+    mediaFilesById,
+    ensureBlobUrlForFile,
+    selectedFileData,
+  ]);
+
+  // Prepare secondary video source when a transition is active
+  useEffect(() => {
+    if (!transitionContext.active) {
+      setTransitionVideoSrc(null);
+      return;
+    }
+    const mediaFile = mediaFilesById.get(transitionContext.previousClip?.mediaFileId);
+    const url = ensureBlobUrlForFile(mediaFile);
+    setTransitionVideoSrc(url || null);
+  }, [transitionContext, mediaFilesById, ensureBlobUrlForFile]);
   
   // Update video element when state changes
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    
-    video.defaultMuted = false;
-    video.muted = false;
-    video.volume = volume / 100;
-    video.playbackRate = playbackRate;
+    const primary = primaryVideoRef.current;
+    const secondary = transitionVideoRef.current;
+    if (primary) {
+      primary.defaultMuted = false;
+      primary.muted = false;
+      primary.volume = volume / 100;
+      primary.playbackRate = playbackRate;
+    }
+    if (secondary) {
+      secondary.defaultMuted = false;
+      secondary.muted = false;
+      secondary.volume = volume / 100;
+      secondary.playbackRate = playbackRate;
+    }
   }, [volume, playbackRate]);
   
   // Handle play/pause
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    
+    const primary = primaryVideoRef.current;
+    const secondary = transitionVideoRef.current;
+    if (!primary) return;
+
     if (isPlaying) {
-      video.play().catch(err => console.error('Play error:', err));
+      primary.play().catch((err) => console.error('Play error:', err));
+      if (secondary && transitionContext.active) {
+        secondary.play().catch(() => {});
+      } else if (secondary) {
+        secondary.pause();
+      }
     } else {
-      video.pause();
+      primary.pause();
+      if (secondary) {
+        secondary.pause();
+      }
     }
-  }, [isPlaying]);
+  }, [isPlaying, transitionContext.active]);
   
   // Sync playhead position with RAF-based seeking (timeline mode only)
   useEffect(() => {
-    const video = videoRef.current;
+    const video = primaryVideoRef.current;
     if (!video) return;
     if (playbackSource !== 'timeline') return;
     // While playing and not scrubbing, the video element is the source of truth.
@@ -129,7 +351,7 @@ export function VideoPlayer() {
   
   // Update currentTime from video element with throttling
   useEffect(() => {
-    const video = videoRef.current;
+    const video = primaryVideoRef.current;
     if (!video) return;
     
     const handleTimeUpdate = () => {
@@ -196,6 +418,77 @@ export function VideoPlayer() {
       }
     };
   }, [seek, setPlayheadPosition, setDuration, playbackSource]);
+
+  useEffect(() => {
+    if (!transitionContext.active) {
+      setTransitionVisual({
+        active: false,
+        primaryOpacity: 1,
+        secondaryOpacity: 0,
+        primaryTransform: 'translateX(0%)',
+        secondaryTransform: 'translateX(0%)',
+        blackOpacity: 0,
+      });
+      return;
+    }
+
+    const visual = buildTransitionVisual({
+      type: transitionContext.type,
+      easing: transitionContext.easing,
+      progress: transitionContext.progress,
+    });
+    setTransitionVisual(visual);
+  }, [transitionContext]);
+
+  useEffect(() => {
+    if (!transitionContext.active) {
+      const primary = primaryVideoRef.current;
+      const secondary = transitionVideoRef.current;
+      const baseVolume = volume / 100;
+      if (primary) {
+        primary.volume = baseVolume;
+      }
+      if (secondary) {
+        secondary.volume = baseVolume;
+      }
+      return;
+    }
+    const secondary = transitionVideoRef.current;
+    if (!secondary) return;
+
+    const previousClip = transitionContext.previousClip;
+    const duration = transitionContext.duration;
+    const transitionOffset = Math.max(0, playheadPosition - transitionContext.start);
+    const clipDuration =
+      Number(previousClip?.duration) ??
+      Math.max(
+        0,
+        (previousClip?.end ?? 0) - (previousClip?.start ?? 0)
+      );
+    const sourceOut = Number(previousClip?.sourceOut);
+    const sourceEnd = Number.isFinite(sourceOut) ? sourceOut : clipDuration;
+    const targetTime = Math.max(0, sourceEnd - duration + transitionOffset);
+
+    if (Math.abs(secondary.currentTime - targetTime) > 0.05) {
+      try {
+        secondary.currentTime = targetTime;
+      } catch {
+        // Secondary clip may not be ready yet; ignore seek errors.
+      }
+    }
+
+    if (isPlaying) {
+      secondary.play().catch(() => {});
+    }
+
+    const primary = primaryVideoRef.current;
+    const baseVolume = volume / 100;
+    const eased = applyEasing(transitionContext.progress, transitionContext.easing);
+    if (primary) {
+      primary.volume = baseVolume * Math.max(0, eased);
+    }
+    secondary.volume = baseVolume * Math.max(0, 1 - eased);
+  }, [transitionContext, playheadPosition, isPlaying, volume]);
   
   const activeTextOverlays = useMemo(() => {
     if (playbackSource !== 'timeline') return [];
@@ -273,6 +566,24 @@ export function VideoPlayer() {
     MUTE: () => setVolume(volume === 0 ? 75 : 0),
     FULLSCREEN: toggleFullscreen,
   });
+
+  const showTransitionVideo =
+    Boolean(transitionContext.active && transitionVideoSrc);
+  const primaryVideoStyle = transitionVisual.active
+    ? {
+        opacity: transitionVisual.primaryOpacity,
+        transform: transitionVisual.primaryTransform,
+      }
+    : undefined;
+  const secondaryVideoStyle = transitionVisual.active
+    ? {
+        opacity: transitionVisual.secondaryOpacity,
+        transform: transitionVisual.secondaryTransform,
+      }
+    : { opacity: 0, transform: 'translateX(0%)' };
+  const blackOverlayOpacity = transitionVisual.active
+    ? transitionVisual.blackOpacity
+    : 0;
   
   return (
     <div
@@ -285,15 +596,34 @@ export function VideoPlayer() {
         {playbackSource === 'timeline' ? 'Timeline' : `Preview: ${selectedFileData?.name ?? ''}`}
       </div>
       {/* Video Element */}
-      <video
-        ref={videoRef}
-        src={videoSrc || undefined}
-        className="w-full h-full object-contain"
-        preload="auto"
-        playsInline
-      >
-        Your browser does not support the video tag.
-      </video>
+      <div className="relative w-full h-full">
+        {showTransitionVideo && (
+          <video
+            ref={transitionVideoRef}
+            src={transitionVideoSrc || undefined}
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-all duration-150 ease-out"
+            style={secondaryVideoStyle}
+            preload="auto"
+            playsInline
+          />
+        )}
+        <video
+          ref={primaryVideoRef}
+          src={videoSrc || undefined}
+          className="relative w-full h-full object-contain transition-all duration-150 ease-out"
+          style={primaryVideoStyle}
+          preload="auto"
+          playsInline
+        >
+          Your browser does not support the video tag.
+        </video>
+        {blackOverlayOpacity > 0 && (
+          <div
+            className="pointer-events-none absolute inset-0 bg-black transition-opacity duration-150 ease-out"
+            style={{ opacity: blackOverlayOpacity }}
+          />
+        )}
+      </div>
 
       {showTextOverlays && (
         <div className="absolute inset-0 pointer-events-none">

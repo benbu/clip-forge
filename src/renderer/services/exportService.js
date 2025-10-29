@@ -453,10 +453,26 @@ export class ExportService {
     const mediaFiles = Array.isArray(job.mediaSnapshot) ? job.mediaSnapshot : [];
     const blobUrls = job.mediaBlobUrls || {};
     const timelineClips = Array.isArray(job.timelineSnapshot) ? job.timelineSnapshot : [];
+    const transitions = Array.isArray(job.timelineTransitions) ? job.timelineTransitions : [];
 
-    return timelineClips
+    const transitionsByFrom = new Map();
+    for (const transition of transitions) {
+      if (!transition?.fromClipId || !transition?.toClipId) continue;
+      if (transitionsByFrom.has(transition.fromClipId)) {
+        const list = transitionsByFrom.get(transition.fromClipId);
+        if (!list.some((item) => item.toClipId === transition.toClipId)) {
+          list.push(transition);
+        }
+      } else {
+        transitionsByFrom.set(transition.fromClipId, [transition]);
+      }
+    }
+
+    const sortedTimeline = timelineClips
       .slice()
-      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+
+    return sortedTimeline
       .map((clip) => {
         const mediaFile = mediaFiles.find((file) => file.id === clip.mediaFileId);
         if (!mediaFile) return null;
@@ -492,7 +508,7 @@ export class ExportService {
 
         const volumeScalar = Math.max(0, Number(clip.volume ?? recordingMeta.volume ?? 100) / 100);
 
-        return {
+        const normalizedClip = {
           id: clip.id,
           source: baseSource,
           overlaySource: recordingMeta.cameraFile || recordingMeta.cameraPath || null,
@@ -514,7 +530,39 @@ export class ExportService {
           sourceType: mediaFile.sourceType,
           recordingMeta,
           volume: volumeScalar,
+          mediaFileId: mediaFile.id,
         };
+
+        const outgoingTransitions = transitionsByFrom.get(clip.id) || [];
+        for (const transition of outgoingTransitions) {
+          const targetClip =
+            timelineClips.find((candidate) => candidate.id === transition.toClipId) || null;
+          if (!targetClip) {
+            continue;
+          }
+          const minDuration = 0.1;
+          const nextDurationCandidate = Number.isFinite(targetClip.duration)
+            ? targetClip.duration
+            : Math.max(0, (targetClip.end ?? 0) - (targetClip.start ?? 0));
+          const maxDuration = Math.max(minDuration, Math.min(duration, nextDurationCandidate));
+          if (maxDuration < minDuration) {
+            continue;
+          }
+          const requestedDuration = Number(transition.duration) || minDuration;
+          const clampedDuration = Math.max(
+            minDuration,
+            Math.min(requestedDuration, maxDuration)
+          );
+          normalizedClip.transitionOut = {
+            type: typeof transition.type === 'string' ? transition.type : 'crossfade',
+            easing: typeof transition.easing === 'string' ? transition.easing : 'ease-in-out',
+            duration: clampedDuration,
+            toClipId: transition.toClipId,
+          };
+          break;
+        }
+
+        return normalizedClip;
       })
       .filter(Boolean);
   }
