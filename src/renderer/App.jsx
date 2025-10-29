@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { MediaLibrary } from './components/features/MediaLibrary/MediaLibrary';
 import { VideoPlayer } from './components/features/Player/VideoPlayer';
 import { Timeline } from './components/features/Timeline/Timeline';
@@ -13,12 +13,15 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { usePerfStore } from '@/store/perfStore';
 import { persistenceService } from '@/services/persistenceService';
 import { waveformQueue } from '@/services/waveformQueue';
+import { SessionRecoveryModal } from '@/components/features/Settings/SessionRecoveryModal';
 
 export default function App() {
 
   const [toasts, setToasts] = useState([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const recoveryCheckDone = useRef(false);
   const clipCount = useTimelineStore((state) => state.clips.length);
   const togglePerf = usePerfStore((s) => s.toggleOverlay);
 
@@ -28,12 +31,18 @@ export default function App() {
 
   useEffect(() => {
     // Initialize autosave session and prompt recovery if needed
+    // Use ref to prevent double execution in React StrictMode
+    if (recoveryCheckDone.current) return;
+    recoveryCheckDone.current = true;
+
     try {
       persistenceService.startSession();
       persistenceService.startAutoSave();
-      // Prompt recovery (non-blocking)
+      // Check for recovery sessions (non-blocking)
       setTimeout(() => {
-        persistenceService.maybeOfferRecovery().catch(() => {});
+        if (persistenceService.hadCrashLastRun() && persistenceService.getBackups().length > 0) {
+          setShowRecoveryModal(true);
+        }
       }, 0);
       waveformQueue.bootstrap();
     } catch (e) {
@@ -132,9 +141,20 @@ export default function App() {
     }
   }, [isExporting, logError, pushToast]);
 
+  const handleRecoveryRestore = useCallback(() => {
+    // Restore already happened in the modal, just close it
+    setShowRecoveryModal(false);
+    pushToast('Session restored', 'success');
+  }, [pushToast]);
+
   return (
     <div className="h-screen flex flex-col">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <SessionRecoveryModal
+        isOpen={showRecoveryModal}
+        onClose={() => setShowRecoveryModal(false)}
+        onRestore={handleRecoveryRestore}
+      />
 
       {/* Top Bar */}
       <header
@@ -169,7 +189,7 @@ export default function App() {
           </ResizablePanel>
 
           <div className="flex-1 min-w-0 flex gap-1">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" data-preview-root="true">
               <VideoPlayer />
             </div>
 

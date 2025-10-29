@@ -1,13 +1,40 @@
 import { useMediaStore } from '@/store/mediaStore';
 import { enqueueThumbnailJobs } from '@/services/thumbnailService';
 
+/**
+ * Check if a path is an absolute path (not just a filename)
+ * @param {string} filePath - Path to check
+ * @returns {boolean} True if path is absolute
+ */
+function isAbsolutePath(filePath) {
+  if (!filePath || typeof filePath !== 'string') return false;
+  
+  // Windows absolute path: C:\ or \\server\share
+  if (/^[a-zA-Z]:\\/.test(filePath) || filePath.startsWith('\\\\')) return true;
+  
+  // POSIX absolute path: /path
+  if (filePath.startsWith('/')) return true;
+  
+  return false;
+}
+
 export async function checkMissingMedia(files) {
   if (!Array.isArray(files) || files.length === 0) return;
   const api = window.electronAPI;
   if (!api?.fileExists) return;
   const { updateFile } = useMediaStore.getState();
   for (const f of files) {
+    // Skip files without paths
     if (!f?.path) continue;
+    
+    // Skip files with originalFile reference - these are blob-backed and always available
+    // They don't need missing checks since they're in memory
+    if (f.originalFile) continue;
+    
+    // Only check files with absolute paths - skip relative paths/filenames
+    // Files without absolute paths can't be verified via filesystem checks
+    if (!isAbsolutePath(f.path)) continue;
+    
     try {
       const res = await api.fileExists(f.path);
       if (!res?.exists) {

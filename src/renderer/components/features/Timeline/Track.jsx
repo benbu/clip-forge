@@ -1,5 +1,14 @@
 import React, { useCallback, useMemo } from 'react';
-import { Volume2, VolumeX, Lock, Trash2, ChevronUp, ChevronDown, Headphones } from 'lucide-react';
+import {
+  Volume2,
+  VolumeX,
+  Lock,
+  Trash2,
+  Headphones,
+  Eye,
+  EyeOff,
+  Unlock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { Clip } from './Clip';
@@ -26,7 +35,6 @@ export function Track({
   const setTrackVolume = useTimelineStore((state) => state.setTrackVolume);
   const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
   const toggleTrackSolo = useTimelineStore((state) => state.toggleTrackSolo);
-  const nudgeTrackHeight = useTimelineStore((state) => state.nudgeTrackHeight);
 
   const isVisible = track.isVisible ?? true;
   const isLocked = track.isLocked ?? false;
@@ -66,15 +74,8 @@ export function Track({
     toggleTrackSolo(track.id);
   }, [toggleTrackSolo, track.id]);
 
-  const handleNudgeHeight = useCallback(
-    (delta) => {
-      if (isLocked) return;
-      nudgeTrackHeight(track.id, delta);
-    },
-    [isLocked, nudgeTrackHeight, track.id]
-  );
-
   const trackHeightPx = useMemo(() => Math.round(trackHeight * 96), [trackHeight]);
+
 
   const handleDragOver = (event) => {
     if (isLocked) {
@@ -119,13 +120,13 @@ export function Track({
         {/* Track Label */}
         <div
           className={cn(
-            'border-r border-white/10 bg-zinc-800/50 p-2 flex flex-col gap-3 text-[11px] leading-tight',
+            'border-r border-white/10 bg-zinc-800/50 p-2 flex flex-col h-full overflow-y-auto text-[11px] leading-tight',
             isLocked && 'opacity-80'
           )}
           style={{ width: TRACK_LABEL_WIDTH_PX }}
         >
-          <div className="space-y-1">
-            <div className="flex items-center gap-1 text-[12px] font-medium text-zinc-200">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium text-zinc-200">
               <span className="truncate" title={track.name}>
                 {track.name}
               </span>
@@ -136,34 +137,70 @@ export function Track({
                 <Headphones className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
               )}
             </div>
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-              {track.type}
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Trash2 className="h-3.5 w-3.5" />}
+              className={cn('h-7 w-7 p-0 shrink-0', clipCount > 0 && 'opacity-40 cursor-not-allowed')}
+              disabled={clipCount > 0}
+              tooltip="Remove track"
+              ariaLabel="Remove track"
+            />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Volume2
-                className={cn('h-3.5 w-3.5 shrink-0', isAudioTrack ? 'text-zinc-400' : 'text-zinc-600')}
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-400">
+            <div className="flex items-center gap-1">
+              {isVisible ? (
+                <Eye className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+              )}
+              <Switch
+                size="sm"
+                checked={isVisible}
+                onChange={(next) => setTrackVisibility(track.id, next)}
+                disabled={isLocked}
+                className="transform scale-50 origin-left"
+                aria-label={isVisible ? 'Toggle track visibility (visible)' : 'Toggle track visibility (hidden)'}
               />
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={isMuted ? 0 : trackVolume}
-                onChange={handleVolumeChange}
-                className="flex-1 h-1.5 accent-indigo-500"
-                disabled={isLocked || !isAudioTrack}
-              />
-              <span className="text-[10px] text-zinc-400 w-12 text-right">
-                {isMuted ? 'Muted' : `${trackVolume}%`}
-              </span>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex items-center gap-1">
+              {isLocked ? (
+                <Lock className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+              ) : (
+                <Unlock className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
+              )}
+              <Switch
+                size="sm"
+                checked={isLocked}
+                onChange={(next) => setTrackLocked(track.id, next)}
+                className="transform scale-50 origin-left"
+                aria-label={isLocked ? 'Unlock track' : 'Lock track'}
+              />
+            </div>
+            {isAudioTrack && (
               <button
                 type="button"
                 className={cn(
-                  'rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition flex items-center gap-1',
+                  'rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition',
+                  isSolo
+                    ? 'bg-amber-500/30 text-amber-100 hover:bg-amber-500/40'
+                    : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'
+                )}
+                onClick={handleToggleSolo}
+                disabled={isLocked}
+              >
+                Solo
+              </button>
+            )}
+          </div>
+
+          <div className="mt-auto flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={cn(
+                  'flex h-6 w-6 items-center justify-center rounded-md border border-white/10 transition',
                   isMuted
                     ? 'bg-red-500/20 text-red-200 hover:bg-red-500/30'
                     : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60',
@@ -171,86 +208,28 @@ export function Track({
                 )}
                 onClick={handleToggleMute}
                 disabled={isLocked || !isAudioTrack}
+                aria-label={isMuted ? 'Unmute track' : 'Mute track'}
+                aria-pressed={isMuted}
               >
                 {isMuted ? (
-                  <VolumeX className="h-3 w-3" />
+                  <VolumeX className="h-3.5 w-3.5" />
                 ) : (
-                  <Volume2 className="h-3 w-3" />
+                  <Volume2 className="h-3.5 w-3.5" />
                 )}
-                {isMuted ? 'Unmute' : 'Mute'}
               </button>
-              {isAudioTrack && (
-                <button
-                  type="button"
-                  className={cn(
-                    'rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide transition',
-                    isSolo
-                      ? 'bg-amber-500/30 text-amber-100 hover:bg-amber-500/40'
-                      : 'bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60'
-                  )}
-                  onClick={handleToggleSolo}
-                  disabled={isLocked}
-                >
-                  Solo
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400">
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate">Visible</span>
-              <Switch
-                size="sm"
-                checked={isVisible}
-                onChange={(next) => setTrackVisibility(track.id, next)}
-                disabled={isLocked}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={isMuted ? 0 : trackVolume}
+                onChange={handleVolumeChange}
+                className="w-24 h-1 accent-indigo-500"
+                disabled={isLocked || !isAudioTrack}
               />
+              <span className="text-[10px] text-zinc-400 w-12 text-right">
+                {isMuted ? 'Muted' : `${trackVolume}%`}
+              </span>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate">Locked</span>
-              <Switch
-                size="sm"
-                checked={isLocked}
-                onChange={(next) => setTrackLocked(track.id, next)}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] text-zinc-400">
-            <span>Height</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className="rounded-md border border-white/10 p-0.5 hover:bg-zinc-700/60 transition disabled:opacity-40"
-                onClick={() => handleNudgeHeight(0.25)}
-                disabled={isLocked}
-                aria-label="Increase track height"
-              >
-                <ChevronUp className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-white/10 p-0.5 hover:bg-zinc-700/60 transition disabled:opacity-40"
-                onClick={() => handleNudgeHeight(-0.25)}
-                disabled={isLocked}
-                aria-label="Decrease track height"
-              >
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<Trash2 className="h-3.5 w-3.5" />}
-              className={cn('h-7 w-7 p-0', clipCount > 0 && 'opacity-40 cursor-not-allowed')}
-              disabled={clipCount > 0}
-              tooltip="Remove track"
-              ariaLabel="Remove track"
-            />
           </div>
         </div>
 

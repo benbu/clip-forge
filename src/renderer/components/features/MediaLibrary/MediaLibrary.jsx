@@ -32,6 +32,8 @@ export function MediaLibrary() {
   const [viewMode, setViewMode] = useState('grid');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+  const libraryRef = useRef(null);
+  const detailRef = useRef(null);
   
   // Use actual files from store
   const displayFiles = files;
@@ -152,9 +154,64 @@ export function MediaLibrary() {
     if (!Array.isArray(files) || files.length === 0) return;
     checkMissingMedia(files);
   }, [files]);
+
+  useEffect(() => {
+    if (!selectedFile) return;
+
+    const containsTarget = (element, target, path) => {
+      if (!element || !target) return false;
+      if (element.contains(target)) return true;
+      if (Array.isArray(path) && path.includes(element)) return true;
+      return false;
+    };
+
+    const handlePointerDown = (event) => {
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : undefined;
+      const target = event.target;
+      if (
+        containsTarget(libraryRef.current, target, path) ||
+        containsTarget(detailRef.current, target, path)
+      ) {
+        return;
+      }
+      clearSelection();
+    };
+
+    const handleFocusIn = (event) => {
+      const target = event.target;
+      if (!target) return;
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : undefined;
+      if (
+        containsTarget(libraryRef.current, target, path) ||
+        containsTarget(detailRef.current, target, path)
+      ) {
+        return;
+      }
+      clearSelection();
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        clearSelection();
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedFile, clearSelection]);
   
   return (
-    <div className="h-full flex flex-col bg-zinc-900/40 rounded-lg border border-white/10 relative">
+    <div
+      ref={libraryRef}
+      className="h-full flex flex-col bg-zinc-900/40 rounded-lg border border-white/10 relative"
+    >
       {/* Header */}
       <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between mb-2">
@@ -321,7 +378,7 @@ export function MediaLibrary() {
 
       {/* Detail Drawer */}
       {selectedFile && selectedFileData && (
-        <ClipDetailDrawer file={selectedFileData} onClose={clearSelection} />
+        <ClipDetailDrawer ref={detailRef} file={selectedFileData} onClose={clearSelection} />
       )}
     </div>
   );

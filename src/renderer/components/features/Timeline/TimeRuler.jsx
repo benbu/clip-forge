@@ -51,7 +51,7 @@ export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration 
     const clickX = localX - trackLabelWidth;
     // Ignore clicks beyond the right edge
     if (clickX < 0 || clickX > timelineWidth) {
-      return;
+      return; 
     }
 
     const time = (clickX / timelineWidth) * duration;
@@ -77,7 +77,7 @@ export function TimeRuler({ startTime, endTime, zoom, playhead, visibleDuration 
               style={{ left: `calc(${trackLabelWidth}px + ${position / 100} * (100% - ${trackLabelWidth}px))` }}
             >
               {isMajor && (
-                <span className="absolute -bottom-5 left-0 text-xs text-zinc-400 transform -translate-x-1/2">
+                <span className="absolute bottom-0 left-0 text-xs text-zinc-400 transform -translate-x-1/2">
                   {tick}s
                 </span>
               )}

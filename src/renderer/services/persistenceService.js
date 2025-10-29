@@ -114,6 +114,12 @@ export class PersistenceService {
     return list.length ? list[0] : null;
   }
 
+  deleteBackup(backupId) {
+    const list = this.getBackups();
+    const filtered = list.filter((b) => b.id !== backupId);
+    this.setBackups(filtered);
+  }
+
   async restoreBackup(entry) {
     if (!entry?.data) throw new Error('Invalid backup');
     const projectData = entry.data;

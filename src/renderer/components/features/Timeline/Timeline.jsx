@@ -52,9 +52,14 @@ export function Timeline() {
   const fallbackOverlayTrack = overlayTracks[0] ?? null;
   const canCreateTextOverlay = Boolean(unlockedOverlayTrack);
 
+  const MAX_TIMELINE_DURATION = 120;
+  const safeZoom = zoom > 0 ? zoom : 0.01;
+  const visibleDuration = MAX_TIMELINE_DURATION / safeZoom;
+
   const focusTimeline = useCallback(() => {
     timelineRef.current?.focus();
-  }, []);
+    clearSelection();
+  }, [clearSelection]);
 
   const switchToTimeline = useCallback(() => {
     setPlaybackSource('timeline');
@@ -199,6 +204,9 @@ export function Timeline() {
     event.preventDefault();
     setIsDragOver(false);
     setHoveredTrackId(null);
+
+    // Clear media library selection when dropping a clip on timeline
+    clearSelection();
 
     try {
       // Check if there's any data to parse
@@ -396,115 +404,118 @@ export function Timeline() {
       onMouseDown={(e) => { focusTimeline(); switchToTimeline(); }}
     >
       {/* Timeline Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/80">
-        <div className="flex items-center gap-2">
-          <h3 className="text-xs uppercase font-semibold text-zinc-400">Timeline</h3>
-          <div className="flex items-center gap-1">
+      <div className="flex items-center gap-3 px-3 border-b border-white/10 bg-zinc-900/80">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-1 rounded-md bg-zinc-900/60 px-1.5 py-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<ZoomOut className="h-3.5 w-3.5" />}
+                iconOnly
+                onClick={() => handleZoomIncrement(-0.25)}
+              />
+              <div className="relative">
+                <Input
+                  ref={zoomInputRef}
+                  type="text"
+                  value={zoomInput}
+                  onChange={(e) => handleZoomInputChange(e.target.value)}
+                  onBlur={handleZoomInputBlur}
+                  onKeyDown={handleZoomInputKeyDown}
+                  className="w-14 h-7 text-[11px] text-center pr-5 pl-2 bg-zinc-950/80 border-zinc-800 focus:ring-1 focus:ring-offset-0"
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[11px] text-zinc-500">
+                  x
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<ZoomIn className="h-3.5 w-3.5" />}
+                iconOnly
+                onClick={() => handleZoomIncrement(0.25)}
+              />
+            </div>
+            <Button
+              size="sm"
+              variant={snapToGrid ? 'secondary' : 'ghost'}
+              icon={<Grid className="h-3.5 w-3.5" />}
+              iconOnly
+              onClick={toggleSnapToGrid}
+            />
             <Button
               size="sm"
               variant="ghost"
-              icon={<ZoomOut className="h-3.5 w-3.5" />}
+              icon={<Scissors className="h-3.5 w-3.5" />}
               iconOnly
-              onClick={() => handleZoomIncrement(-0.25)}
+              onClick={handleSplitClick}
+              disabled={clips.length === 0}
             />
-            <Input
-              ref={zoomInputRef}
-              type="text"
-              value={zoomInput}
-              onChange={(e) => handleZoomInputChange(e.target.value)}
-              onBlur={handleZoomInputBlur}
-              onKeyDown={handleZoomInputKeyDown}
-              className="w-16 h-8 text-xs text-center"
-            />
-            <span className="text-xs text-zinc-500">x</span>
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              icon={<ZoomIn className="h-3.5 w-3.5" />} 
-              iconOnly 
-              onClick={() => handleZoomIncrement(0.25)} 
-            />
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Type className="h-3.5 w-3.5" />}
+              onClick={handleOpenNewTextOverlay}
+              disabled={!canCreateTextOverlay}
+            >
+              Add Text
+            </Button>
           </div>
-          <Button 
-            size="sm" 
-            variant={snapToGrid ? "secondary" : "ghost"} 
-            icon={<Grid className="h-3.5 w-3.5" />} 
-            iconOnly
-            onClick={toggleSnapToGrid}
+          <TimelineMinimap
+            clips={clips}
+            tracks={tracks}
+            playhead={playheadPosition}
+            zoom={zoom}
+            maxDuration={MAX_TIMELINE_DURATION}
+            variant="toolbar"
+            className="ml-auto"
           />
-          <Button 
-            size="sm" 
-            variant="ghost" 
-            icon={<Scissors className="h-3.5 w-3.5" />} 
-            iconOnly
-            onClick={handleSplitClick}
-            disabled={clips.length === 0}
-          />
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={<Type className="h-3.5 w-3.5" />}
-            onClick={handleOpenNewTextOverlay}
-            disabled={!canCreateTextOverlay}
-          >
-            Add Text
-          </Button>
         </div>
       </div>
       
       {/* Timeline Content */}
       <div className="flex-1 overflow-auto">
-        {(() => {
-          const MAX_DURATION = 120;
-          const visibleDuration = MAX_DURATION / zoom;
+        <TimeRuler
+          startTime={0}
+          endTime={visibleDuration}
+          zoom={zoom}
+          playhead={playheadPosition}
+          visibleDuration={visibleDuration}
+        />
 
-          return (
-            <>
-              {/* Time Ruler */}
-              <TimelineMinimap
-                clips={clips}
-                tracks={tracks}
-                playhead={playheadPosition}
+        {/* Tracks Container */}
+        <div className="relative">
+          {/* Playhead */}
+          <Playhead position={playheadPosition} zoom={zoom} visibleDuration={visibleDuration} />
+
+          {/* Tracks */}
+          <div className="border-t border-white/10">
+            {tracks.map((track) => (
+              <Track
+                key={track.id}
+                track={track}
+                clips={clips.filter((c) => c.trackId === track.id)}
                 zoom={zoom}
-                maxDuration={MAX_DURATION}
+                visibleDuration={visibleDuration}
+                onSelectClip={focusTimeline}
+                onEditTextOverlay={handleEditTextOverlay}
+                onDragOverTrack={(event) => {
+                  event.preventDefault();
+                  setHoveredTrackId(track.id);
+                  event.dataTransfer.dropEffect = 'copy';
+                }}
+                onDragLeaveTrack={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setHoveredTrackId((prev) => (prev === track.id ? null : prev));
+                  }
+                }}
+                onDropClip={(event) => handleDropOnTrack(event, track.id)}
+                isActiveDropTarget={hoveredTrackId === track.id}
               />
-              <TimeRuler startTime={0} endTime={visibleDuration} zoom={zoom} playhead={playheadPosition} visibleDuration={visibleDuration} />
-              
-              {/* Tracks Container */}
-              <div className="relative">
-                {/* Playhead */}
-                <Playhead position={playheadPosition} zoom={zoom} visibleDuration={visibleDuration} />
-                
-                {/* Tracks */}
-                <div className="border-t border-white/10">
-                  {tracks.map(track => (
-                    <Track
-                      key={track.id}
-                      track={track}
-                      clips={clips.filter(c => c.trackId === track.id)}
-                      zoom={zoom}
-                      visibleDuration={visibleDuration}
-                      onSelectClip={focusTimeline}
-                      onEditTextOverlay={handleEditTextOverlay}
-                      onDragOverTrack={(event) => {
-                        event.preventDefault();
-                        setHoveredTrackId(track.id);
-                        event.dataTransfer.dropEffect = 'copy';
-                      }}
-                      onDragLeaveTrack={(event) => {
-                        if (!event.currentTarget.contains(event.relatedTarget)) {
-                          setHoveredTrackId((prev) => (prev === track.id ? null : prev));
-                        }
-                      }}
-                      onDropClip={(event) => handleDropOnTrack(event, track.id)}
-                      isActiveDropTarget={hoveredTrackId === track.id}
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          );
-        })()}
+            ))}
+          </div>
+        </div>
       </div>
 
       <TextOverlayDialog

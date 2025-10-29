@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Switch } from '../../ui/Switch';
 import { Slider } from '../../ui/Slider';
 import { Button } from '../../ui/Button';
@@ -12,6 +12,7 @@ export function AdvancedSettings() {
   const setAutosaveEnabled = useSettingsStore((s) => s.setAutosaveEnabled);
   const backupRetention = useSettingsStore((s) => s.backupRetention);
   const setBackupRetention = useSettingsStore((s) => s.setBackupRetention);
+  const [maxCacheSize, setMaxCacheSize] = useState(5); // TODO: wire to store if needed
 
   return (
     <div className="space-y-4">
@@ -26,10 +27,6 @@ export function AdvancedSettings() {
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Auto-save Interval: {autosaveMinutes} minutes</label>
             <Slider value={[autosaveMinutes]} min={1} max={60} step={1} onValueChange={([val]) => setAutosaveMinutes(val)} />
-          </div>
-          <div>
-            <label className="text-xs text-zinc-400 mb-2 block">Max Undo History: {maxUndo}</label>
-            <Slider value={[maxUndo]} min={5} max={100} step={5} onValueChange={([val]) => setMaxUndo(val)} />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Backup Retention: {backupRetention} versions</label>
