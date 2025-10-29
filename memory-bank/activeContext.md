@@ -2,18 +2,22 @@
 
 ## Current Focus
 
-**Phase**: Post-MVP Feature Completion — Media Library & Asset Management
-**Status**: Epic 2 delivered (sortable/filters, detail drawer, thumbnails, missing-media, bulk actions)
+**Phase**: Post-MVP Feature Completion — Export & Delivery (Epic 4)
+**Status**: Export queue + presets + validation shipped; preparing timeline waveform work
 
 Focus for next work session:
-1. Timeline & Editing upgrades (multi-tracks, overlays, waveforms, ripple edits)
-2. Recording enhancements (source picker, PiP controls, audio routing)
-3. Export polish (queue, presets, progress/ETA)
-4. Performance, Observability & Reliability (Epic 5): overlay, logging, guardrails, autosave/backups, diagnostics export
+1. Timeline audio waveforms and per-clip gain controls (Epic 3)
+2. Timeline zoom/minimap UX improvements
+3. Recording PiP & audio routing polish
+4. Cross-platform QA for new export pipeline
 
 ## Recent Changes
 
 ### Completed
+- Export queue with sequential scheduling, pause/cancel, and job persistence
+- Real-time export telemetry (stage, ETA, FFmpeg log streaming) wired through renderer queue store
+- Enhanced Export modal: social presets, bitrate/fps controls, summary review, metadata capture, diagnostics download
+- Post-export validation pipeline (probe + filesystem check) with Reveal-in-Finder shortcut via secure IPC
 - Media Library sortable columns and quick filters
 - Clip Detail Drawer with metadata, rename, and usage by track
 - Async thumbnail caching + background generation
@@ -26,42 +30,41 @@ Focus for next work session:
 
 ### Git Status
 - Modified: `docs/clipforge_remaining_features_tasklist.md`
-- Modified: `README.md`, `PROGRESS.md`
 - Modified: `src/main/main.js`, `src/preload/bridge.js`
-- Modified: `src/renderer/components/features/MediaLibrary/*`
-- Modified: `src/renderer/services/*`, `src/renderer/store/mediaStore.js`
+- Modified: `src/media/ffmpegWorker.js`
+- Modified: `src/renderer/services/exportService.js`
+- Modified: `src/renderer/components/features/Export/ExportModal.jsx`
+- Added: `src/renderer/store/exportQueueStore.js`
 
 ## Current Work Session
 
 ### Today's Priority
-Run profiling on large timelines; identify hotspots and plan optimizations.
+Finalize plan for timeline audio waveform rendering and schedule cross-platform QA pass for the new export queue.
 
 ### Active Decisions
-1. Keep IPC surface minimal and validated; new channels `fs:exists` and `dialog:openVideo` restricted via preload.
-2. Prefer background workers for expensive operations (thumbnail gen stays async with caching).
+1. Keep IPC surface minimal and validated; new channels (`fs:exists`, `dialog:openVideo`, `shell:revealItem`) exposed only through preload guards.
+2. Prefer background workers for expensive operations (thumbnail generation, FFmpeg merges stay async with caching).
+3. Export queue state lives in the renderer (Zustand store) with `exportService.enqueueExport` as the single entry point for UX.
+4. Stream FFmpeg progress/logs via window events; renderer throttles display but persists last 200 log lines per job for diagnostics.
 
 ## Next Steps (Immediate)
 
-### Immediate (Today)
-1. ✅ Initialize Memory Bank
-2. ⏳ Set up project directory structure
-3. ⏳ Configure TypeScript, Vite, and Tailwind CSS
-4. ⏳ Create secure preload script and IPC architecture
-5. ⏳ Implement basic window manager
+### Immediate (Next)
+1. Implement audio waveform peak generation + renderer visualization for timeline tracks.
+2. Improve timeline navigation (zoom, minimap, keyboard shortcuts).
+3. Execute cross-platform regression pass on the new export queue and summary UI.
 
 ### This Week
-1. Build base React UI with Tailwind CSS
-2. Implement Media Library component
-3. Set up video preview player
-4. Begin timeline component structure
-5. Integrate FFmpeg for basic operations
+1. Ship recording PiP placement controls and audio routing presets.
+2. Harden export presets (QA presets & bitrate defaults) and document recommended workflows.
+3. Draft release notes + update user documentation with new export flow.
 
 ### This Sprint (2 weeks)
-1. Complete timeline drag-and-drop functionality
-2. Implement trimming and splitting
-3. Build screen recording capability
-4. Create export workflow
-5. Package initial build for testing
+1. Complete waveform release (gain controls, waveform caching).
+2. Finalize recording enhancements (source picker refinements, audio meter polish).
+3. Profile timeline performance under heavy loads; validate virtualization approach.
+4. Automate export regression smoke via Playwright.
+5. Gather usability feedback on new export experience and iterate.
 
 ## Active Concerns & Questions
 

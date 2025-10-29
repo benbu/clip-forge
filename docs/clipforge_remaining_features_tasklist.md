@@ -26,11 +26,11 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [ ] Improve timeline zooming with mousewheel + modifier shortcuts and a minimap for quick navigation.
 
 ## 4. Export & Delivery Improvements
-- [ ] Expand export presets beyond the MVP: add social-ready formats (Square 1080x1080, Vertical 1080x1920), bitrate presets, and frame-rate selection.
-- [ ] Surface an export summary screen (timeline duration, selected clips, output path) with editable metadata (title, project notes).
-- [ ] Provide an export queue so multiple timelines/renders can process sequentially with pause/cancel support.
-- [ ] Integrate real-time progress and ETA updates from the FFmpeg worker into the UI, including error retry prompts and log download.
-- [ ] Validate exported files post-render (basic probe to confirm duration/fps) and offer "Reveal in Finder/Explorer" shortcuts.
+- [x] Expand export presets beyond the MVP: add social-ready formats (Square 1080x1080, Vertical 1080x1920), bitrate presets, and frame-rate selection.
+- [x] Surface an export summary screen (timeline duration, selected clips, output path) with editable metadata (title, project notes).
+- [x] Provide an export queue so multiple timelines/renders can process sequentially with pause/cancel support.
+- [x] Integrate real-time progress and ETA updates from the FFmpeg worker into the UI, including error retry prompts and log download.
+- [x] Validate exported files post-render (basic probe to confirm duration/fps) and offer "Reveal in Finder/Explorer" shortcuts.
 
 ## 5. Performance, Observability, and Reliability
 - [ ] Profile playback and timeline interactions with 10+ clips; capture FPS and JS heap metrics, then optimize hotspots (virtualization, memoization).

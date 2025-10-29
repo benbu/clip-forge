@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDiskFree: (targetPath) => ipcRenderer.invoke('system:getDiskFree', targetPath),
   getUserDataPath: () => ipcRenderer.invoke('system:getUserDataPath'),
   saveJsonDialog: (suggestedName) => ipcRenderer.invoke('dialog:saveJson', suggestedName),
+  revealInFolder: (filePath) => ipcRenderer.invoke('shell:revealItem', filePath),
   onTrayRecordingCommand: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, command) => {

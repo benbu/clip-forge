@@ -15,6 +15,16 @@ import coreWorkerURL from '@ffmpeg/ffmpeg/worker?url';
 let ffmpeg;
 let loadPromise;
 
+const emitRendererEvent = (name, detail) => {
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent(name, { detail }));
+    } catch (error) {
+      // Swallow event emission errors to avoid breaking ffmpeg pipeline
+    }
+  }
+};
+
 async function getFFmpeg() {
   if (ffmpeg?.loaded) return ffmpeg;
 
@@ -35,12 +45,8 @@ async function getFFmpeg() {
         workerURL: coreWorkerURL,
       });
 
-      ffmpeg.on('progress', ({ progress }) => {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('ffmpeg-progress', { detail: { progress } })
-          );
-        }
+      ffmpeg.on('progress', ({ progress, ratio, time }) => {
+        emitRendererEvent('ffmpeg-progress', { progress, ratio, time });
       });
 
       return ffmpeg;
@@ -126,9 +132,11 @@ async function runCommand(instance, args) {
   const logs = [];
   const listener = ({ type, message }) => {
     logs.push(`[${type}] ${message}`);
+    emitRendererEvent('ffmpeg-log', { type, message });
   };
   instance.on('log', listener);
   try {
+    emitRendererEvent('ffmpeg-log', { type: 'command', message: args.join(' ') });
     const resultCode = await instance.exec(args);
     if (resultCode !== 0) {
       const logTail = logs.slice(-30).join('\n');
@@ -763,12 +771,22 @@ export async function exportVideo(source, outputName = 'exported.mp4', options =
       command.push('-b:v', options.bitrate);
     }
 
-    command.push('-c:v', options.codec || 'libx264', '-c:a', 'aac', '-preset', options.preset || 'veryfast');
+    const format = (options.format || '').toLowerCase();
+    const videoCodec = options.codec || (format === 'webm' ? 'libvpx-vp9' : format === 'mov' ? 'prores_ks' : 'libx264');
+    const audioCodec = format === 'webm' ? 'libopus' : 'aac';
+
+    command.push('-c:v', videoCodec, '-c:a', audioCodec, '-preset', options.preset || 'veryfast');
 
     if (options.crf) {
       command.push('-crf', `${options.crf}`);
     } else {
       command.push('-crf', '23');
+    }
+
+    if (format === 'webm') {
+      command.push('-b:a', '192k');
+      command.push('-row-mt', '1');
+      command.push('-deadline', 'realtime');
     }
 
     command.push(outputFile);
@@ -812,5 +830,22 @@ export async function extractThumbnail(source, time = 1, outputName = 'thumbnail
   } finally {
     await safeDelete(instance, inputName);
     await safeDelete(instance, outputFile);
+  }
+}
+
+export async function probeMedia(source) {
+  const instance = await getFFmpeg();
+  const inputName = 'probe-input';
+  try {
+    await writeInputFile(instance, inputName, source);
+    if (typeof instance.probe === 'function') {
+      return await instance.probe(inputName);
+    }
+    return null;
+  } catch (error) {
+    console.error('Error probing media:', error);
+    throw error;
+  } finally {
+    await safeDelete(instance, inputName);
   }
 }

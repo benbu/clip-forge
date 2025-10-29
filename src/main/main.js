@@ -345,6 +345,17 @@ ipcMain.handle('chooseExportPath', async (event, suggestedName) => {
   }
 });
 
+ipcMain.handle('shell:revealItem', async (_event, targetPath) => {
+  try {
+    if (!targetPath || typeof targetPath !== 'string') return false;
+    shell.showItemInFolder(targetPath);
+    return true;
+  } catch (error) {
+    console.error('Error revealing item in shell:', error);
+    return false;
+  }
+});
+
 ipcMain.handle('fs:exists', async (_event, filePath) => {
   try {
     if (!filePath || typeof filePath !== 'string') return { exists: false };
