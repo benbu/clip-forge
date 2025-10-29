@@ -182,9 +182,12 @@ export const useTimelineStore = create((set, get) => ({
     set((state) => {
       const mediaTypeHint =
         typeof clip.mediaType === 'string' ? clip.mediaType.toLowerCase() : '';
-      const normalizedMediaType = mediaTypeHint.includes('audio')
-        ? 'audio'
-        : 'video';
+      let normalizedMediaType = 'video';
+      if (mediaTypeHint.includes('audio')) {
+        normalizedMediaType = 'audio';
+      } else if (mediaTypeHint.includes('overlay') || mediaTypeHint.includes('text')) {
+        normalizedMediaType = 'overlay';
+      }
 
       const getDefaultTrackId = (type = 'video') => {
         const tracks = get().tracks;
@@ -207,6 +210,9 @@ export const useTimelineStore = create((set, get) => ({
 
         if (normalizedMediaType === 'audio') {
           return getDefaultTrackId('audio');
+        }
+        if (normalizedMediaType === 'overlay') {
+          return getDefaultTrackId('overlay');
         }
         return getDefaultTrackId('video');
       };
@@ -311,6 +317,31 @@ export const useTimelineStore = create((set, get) => ({
         }
         if (updates.recordingMeta) {
           next.recordingMeta = updates.recordingMeta;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'overlayKind')) {
+          next.overlayKind = updates.overlayKind;
+        }
+        if (updates.textOverlay) {
+          const prevOverlay = clip.textOverlay ?? {};
+          const prevStyle = prevOverlay.style ?? {};
+          const incoming = updates.textOverlay ?? {};
+          const incomingStyle = incoming.style ?? {};
+          next.textOverlay = {
+            ...prevOverlay,
+            ...incoming,
+            style: Object.keys(incomingStyle).length
+              ? {
+                  ...prevStyle,
+                  ...incomingStyle,
+                }
+              : prevStyle,
+          };
+        }
+        if (updates.textOverlay === null) {
+          next.textOverlay = null;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'textOverlayKeyframes')) {
+          next.textOverlayKeyframes = updates.textOverlayKeyframes;
         }
         return next;
       };

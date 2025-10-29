@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Scissors, Grid } from 'lucide-react';
+import { ZoomIn, ZoomOut, Scissors, Grid, Type } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Track } from './Track';
@@ -8,6 +8,7 @@ import { TimeRuler } from './TimeRuler';
 import { useTimelineStore } from '@/store/timelineStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { useMediaStore } from '@/store/mediaStore';
+import { createDefaultTextOverlay } from '@/lib/textOverlay';
 
 export function Timeline() {
   const { 

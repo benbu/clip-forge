@@ -163,4 +163,47 @@ describe('timelineStore', () => {
     expect(stored?.volume).toBe(200);
     expect(stored?.waveform).toEqual(waveform);
   });
+
+  it('supports overlay clips with text metadata on overlay tracks', () => {
+    const overlayTrack = DEFAULT_TRACKS.find((track) => track.type === 'overlay');
+    expect(overlayTrack).toBeTruthy();
+
+    const clip = {
+      id: 'clip-overlay',
+      start: 4,
+      end: 10,
+      mediaType: 'overlay',
+      overlayKind: 'text',
+      textOverlay: {
+        text: 'Hello World',
+        style: { color: '#ffffff', fontSize: 48 },
+        position: { xPercent: 0.5, yPercent: 0.75 },
+      },
+      overlayTransform: {
+        position: 'center',
+        size: 0.35,
+        borderRadius: 12,
+      },
+    };
+
+    getState().addClip(clip);
+    const stored = getState().clips.find((c) => c.id === 'clip-overlay');
+    expect(stored).toBeDefined();
+    expect(stored?.trackId).toBe(overlayTrack?.id);
+    expect(stored?.mediaType).toBe('overlay');
+    expect(stored?.overlayKind).toBe('text');
+    expect(stored?.textOverlay?.text).toBe('Hello World');
+
+    getState().updateClip('clip-overlay', {
+      textOverlay: {
+        text: 'Updated',
+        style: { color: '#ff00ff' },
+      },
+    });
+
+    const updated = getState().clips.find((c) => c.id === 'clip-overlay');
+    expect(updated?.textOverlay?.text).toBe('Updated');
+    expect(updated?.textOverlay?.style?.color).toBe('#ff00ff');
+    expect(updated?.textOverlay?.style?.fontSize).toBe(48);
+  });
 });
