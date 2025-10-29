@@ -4,7 +4,7 @@
 
 import { mergeClips, initVideoService } from './videoService';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useTimelineStore } from '@/store/timelineStore';
+import { useTimelineStore, sanitizeTransitionsForClips } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
 import { useExportQueueStore, getJobById } from '@/store/exportQueueStore';
 
@@ -377,6 +377,12 @@ export class ExportService {
     const timelineSnapshot = deepClone(
       request.timelineSnapshot != null ? request.timelineSnapshot : timelineState.clips || []
     );
+    const transitionSnapshot = sanitizeTransitionsForClips(
+      request.timelineTransitions != null
+        ? request.timelineTransitions
+        : timelineState.transitions || [],
+      timelineSnapshot
+    );
     const mediaSnapshot = deepClone(
       request.mediaSnapshot != null ? request.mediaSnapshot : mediaState.files || []
     );
@@ -401,10 +407,12 @@ export class ExportService {
       metadata,
       outputPath: request.outputPath || null,
       timelineSnapshot,
+      timelineTransitions: transitionSnapshot,
       mediaSnapshot,
       mediaBlobUrls,
       summary: {
         clipCount: Array.isArray(timelineSnapshot) ? timelineSnapshot.length : 0,
+        transitionCount: Array.isArray(transitionSnapshot) ? transitionSnapshot.length : 0,
         durationSeconds,
       },
       logs: [],
@@ -781,4 +789,3 @@ export class ExportService {
 }
 
 export const exportService = new ExportService();
-

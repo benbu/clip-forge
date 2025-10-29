@@ -4,7 +4,7 @@
 
 import { Buffer } from 'buffer';
 import { useMediaStore } from '@/store/mediaStore';
-import { DEFAULT_TRACKS, useTimelineStore } from '@/store/timelineStore';
+import { DEFAULT_TRACKS, useTimelineStore, sanitizeTransitionsForClips } from '@/store/timelineStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
@@ -38,6 +38,7 @@ export class PersistenceService {
         timeline: {
           tracks: timelineState.tracks,
           clips: timelineState.clips,
+          transitions: timelineState.transitions,
           playheadPosition: timelineState.playheadPosition,
           zoom: timelineState.zoom,
           snapToGrid: timelineState.snapToGrid,
@@ -126,6 +127,10 @@ export class PersistenceService {
           ? projectData.timeline.tracks
           : DEFAULT_TRACKS.map((track) => ({ ...track })),
       clips: projectData.timeline?.clips || [],
+      transitions: sanitizeTransitionsForClips(
+        projectData.timeline?.transitions || [],
+        projectData.timeline?.clips || []
+      ),
       playheadPosition: projectData.timeline?.playheadPosition ?? 0,
       zoom: projectData.timeline?.zoom ?? 1,
       snapToGrid: projectData.timeline?.snapToGrid ?? true,
@@ -190,6 +195,10 @@ export class PersistenceService {
             ? projectData.timeline.tracks
             : DEFAULT_TRACKS.map((track) => ({ ...track })),
         clips: projectData.timeline?.clips || [],
+        transitions: sanitizeTransitionsForClips(
+          projectData.timeline?.transitions || [],
+          projectData.timeline?.clips || []
+        ),
         playheadPosition: projectData.timeline?.playheadPosition ?? 0,
         zoom: projectData.timeline?.zoom ?? 1,
         snapToGrid: projectData.timeline?.snapToGrid ?? true,

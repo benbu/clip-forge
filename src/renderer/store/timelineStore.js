@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 
 const EPSILON = 0.0001;
+const MIN_TRANSITION_DURATION = 0.1;
+const MAX_TRANSITION_DURATION = 10;
+const TRANSITION_TYPES = new Set(['crossfade', 'dip-to-black', 'slide']);
+const TRANSITION_EASING = new Set(['linear', 'ease-in', 'ease-out', 'ease-in-out']);
+
+const createTransitionId = () =>
+  `transition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const withDefaultTrackState = (track, index = 0) => ({
   id: track.id ?? `${track.type ?? 'video'}-${Date.now()}`,
@@ -70,6 +77,108 @@ const collapseClipsForTrack = (clips, trackId, fromTime = 0) => {
   return working;
 };
 
+const getClipDuration = (clip) => {
+  if (!clip) return 0;
+  if (Number.isFinite(clip.duration)) return Math.max(0, clip.duration);
+  const start = Number.isFinite(clip.start) ? clip.start : 0;
+  const end = Number.isFinite(clip.end) ? clip.end : start;
+  return Math.max(0, end - start);
+};
+
+const sanitizeTransitionConfig = (config = {}, options = {}) => {
+  const fallbackType = options.fallbackType || 'crossfade';
+  const fallbackEasing = options.fallbackEasing || 'ease-in-out';
+  const maxDuration = Number.isFinite(options.maxDuration) ? options.maxDuration : MAX_TRANSITION_DURATION;
+  const minDuration = Number.isFinite(options.minDuration) ? options.minDuration : MIN_TRANSITION_DURATION;
+
+  const type = TRANSITION_TYPES.has(config.type) ? config.type : fallbackType;
+  const easing = TRANSITION_EASING.has(config.easing) ? config.easing : fallbackEasing;
+  const rawDuration = Number(config.duration);
+  const duration = Number.isFinite(rawDuration)
+    ? Math.max(minDuration, Math.min(rawDuration, maxDuration))
+    : Math.max(minDuration, Math.min(0.5, maxDuration));
+
+  return { type, easing, duration };
+};
+
+const sanitizeTransitionList = (transitions, clips) => {
+  if (!Array.isArray(transitions) || !Array.isArray(clips)) {
+    return [];
+  }
+
+  const clipMap = new Map(clips.map((clip) => [clip.id, clip]));
+  const adjacency = new Set();
+  const tracksById = new Map();
+
+  clips.forEach((clip) => {
+    if (!clip?.trackId) return;
+    if (!tracksById.has(clip.trackId)) {
+      tracksById.set(clip.trackId, []);
+    }
+    tracksById.get(clip.trackId).push(cloneClip(clip));
+  });
+
+  tracksById.forEach((trackClips) => {
+    trackClips
+      .sort((a, b) => {
+        const { start: startA } = normalizeClipTiming(a);
+        const { start: startB } = normalizeClipTiming(b);
+        return startA - startB;
+      })
+      .forEach((clip, index, array) => {
+        if (index < array.length - 1) {
+          const nextClip = array[index + 1];
+          adjacency.add(`${clip.id}->${nextClip.id}`);
+        }
+      });
+  });
+
+  return transitions
+    .map((transition) => {
+      if (!transition?.fromClipId || !transition?.toClipId) {
+        return null;
+      }
+
+      const fromClip = clipMap.get(transition.fromClipId);
+      const toClip = clipMap.get(transition.toClipId);
+
+      if (!fromClip || !toClip) {
+        return null;
+      }
+
+      if (fromClip.trackId !== toClip.trackId) {
+        return null;
+      }
+
+      if (!adjacency.has(`${fromClip.id}->${toClip.id}`)) {
+        return null;
+      }
+
+      const maxDuration = Math.max(
+        MIN_TRANSITION_DURATION,
+        Math.min(getClipDuration(fromClip), getClipDuration(toClip))
+      );
+
+      const sanitized = sanitizeTransitionConfig(transition, { maxDuration });
+
+      return {
+        id: transition.id || createTransitionId(),
+        trackId: fromClip.trackId,
+        fromClipId: transition.fromClipId,
+        toClipId: transition.toClipId,
+        type: sanitized.type,
+        easing: sanitized.easing,
+        duration: Math.min(sanitized.duration, maxDuration),
+        createdAt: transition.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+};
+
+export const sanitizeTransitionsForClips = (transitions, clips) =>
+  sanitizeTransitionList(transitions, clips);
+
 /**
  * Timeline Store - Manages timeline clips, playhead position, and zoom
  */
@@ -77,6 +186,7 @@ export const useTimelineStore = create((set, get) => ({
   // State
   tracks: DEFAULT_TRACKS,
   clips: [],
+  transitions: [],
   playheadPosition: 0, // in seconds
   zoom: 1, // 0.1x to 10x
   snapToGrid: true,
@@ -337,9 +447,13 @@ export const useTimelineStore = create((set, get) => ({
       normalizedClip.sourceOut =
         normalizedClip.sourceOut ?? normalizedClip.sourceIn + sourceDuration;
 
+      const nextClips = [...state.clips, normalizedClip];
+      const nextTransitions = sanitizeTransitionList(state.transitions, nextClips);
+
       return {
-        clips: [...state.clips, normalizedClip],
+        clips: nextClips,
         selectedClipId: normalizedClip.id,
+        transitions: nextTransitions,
       };
     }),
 
@@ -396,10 +510,14 @@ export const useTimelineStore = create((set, get) => ({
         return next;
       };
 
-      return {
-        clips: state.clips.map((clip) =>
+      const nextClips = state.clips.map((clip) =>
           clip.id === clipId ? normalizeUpdates(clip) : clip
-        ),
+        );
+      const nextTransitions = sanitizeTransitionList(state.transitions, nextClips);
+
+      return {
+        clips: nextClips,
+        transitions: nextTransitions,
       };
     }),
 
@@ -420,10 +538,13 @@ export const useTimelineStore = create((set, get) => ({
 
       const trackExists = state.tracks.some((track) => track.id === trackId);
       if (!trackExists) return state;
+      const nextClips = state.clips.map((clip) =>
+        clip.id === clipId ? { ...clip, trackId } : clip
+      );
+      const nextTransitions = sanitizeTransitionList(state.transitions, nextClips);
       return {
-        clips: state.clips.map((clip) =>
-          clip.id === clipId ? { ...clip, trackId } : clip
-        ),
+        clips: nextClips,
+        transitions: nextTransitions,
       };
     }),
 
@@ -446,7 +567,16 @@ export const useTimelineStore = create((set, get) => ({
         targetClip.trackId,
         Number.isFinite(targetClip.start) ? targetClip.start : 0
       );
-      return { clips: collapsed, selectedClipId: nextSelected };
+      const remainingTransitions = state.transitions.filter(
+        (transition) =>
+          transition.fromClipId !== clipId && transition.toClipId !== clipId
+      );
+      const nextTransitions = sanitizeTransitionList(remainingTransitions, collapsed);
+      return {
+        clips: collapsed,
+        selectedClipId: nextSelected,
+        transitions: nextTransitions,
+      };
     }),
 
   reorderClips: (clipId, newPosition, trackId) =>
@@ -486,7 +616,9 @@ export const useTimelineStore = create((set, get) => ({
         return replacement ?? clip;
       });
 
-      return { clips: mergedClips };
+      const nextTransitions = sanitizeTransitionList(state.transitions, mergedClips);
+
+      return { clips: mergedClips, transitions: nextTransitions };
     }),
 
   setPlayheadPosition: (position) => set({ playheadPosition: position }),
@@ -549,8 +681,10 @@ export const useTimelineStore = create((set, get) => ({
         Number.isFinite(fromTime) ? fromTime : 0
       );
 
-      return { clips: collapsed };
-    }),
+      const nextTransitions = sanitizeTransitionList(state.transitions, collapsed);
+
+      return { clips: collapsed, transitions: nextTransitions };
+  }),
 
   // Split clip at current playhead
   splitClipAtPlayhead: (clipId) => set((state) => {
@@ -593,6 +727,192 @@ export const useTimelineStore = create((set, get) => ({
       }
     }
 
-    return { clips: nextClips, selectedClipId };
+    const filteredTransitions = state.transitions.filter(
+      (transition) => transition.fromClipId !== clipId
+    );
+    const nextTransitions = sanitizeTransitionList(filteredTransitions, nextClips);
+
+    return { clips: nextClips, selectedClipId, transitions: nextTransitions };
   }),
+
+  setTransitionBetween: (fromClipId, toClipId, config = {}) =>
+    set((state) => {
+      if (!fromClipId || !toClipId || fromClipId === toClipId) {
+        return state;
+      }
+
+      const fromClip = state.clips.find((clip) => clip.id === fromClipId);
+      const toClip = state.clips.find((clip) => clip.id === toClipId);
+      if (!fromClip || !toClip) {
+        return state;
+      }
+
+      if (fromClip.trackId !== toClip.trackId) {
+        console.warn('Transitions must connect clips on the same track.');
+        return state;
+      }
+
+      const track = state.tracks.find((t) => t.id === fromClip.trackId);
+      if (track?.isLocked) {
+        console.warn(`Track "${track.name}" is locked; transition update cancelled.`);
+        return state;
+      }
+
+      const sortedTrackClips = state.clips
+        .filter((clip) => clip.trackId === fromClip.trackId)
+        .slice()
+        .sort((a, b) => {
+          const { start: startA } = normalizeClipTiming(a);
+          const { start: startB } = normalizeClipTiming(b);
+          return startA - startB;
+        });
+
+      const fromIndex = sortedTrackClips.findIndex((clip) => clip.id === fromClipId);
+      if (fromIndex === -1 || sortedTrackClips[fromIndex + 1]?.id !== toClipId) {
+        console.warn('Transitions can only be set between adjacent clips.');
+        return state;
+      }
+
+      const maxDuration = Math.max(
+        MIN_TRANSITION_DURATION,
+        Math.min(getClipDuration(fromClip), getClipDuration(toClip))
+      );
+
+      if (maxDuration <= 0) {
+        console.warn('Clips are too short to support a transition.');
+        return state;
+      }
+
+      const sanitizedConfig = sanitizeTransitionConfig(config, { maxDuration });
+      const duration = Math.min(sanitizedConfig.duration, maxDuration);
+      const timestamp = new Date().toISOString();
+
+      const existingIndex = state.transitions.findIndex(
+        (transition) =>
+          transition.fromClipId === fromClipId && transition.toClipId === toClipId
+      );
+
+      if (existingIndex >= 0) {
+        const existing = state.transitions[existingIndex];
+        const nextTransitions = [...state.transitions];
+        nextTransitions[existingIndex] = {
+          ...existing,
+          type: sanitizedConfig.type,
+          easing: sanitizedConfig.easing,
+          duration,
+          trackId: fromClip.trackId,
+          updatedAt: timestamp,
+        };
+        return {
+          transitions: sanitizeTransitionList(nextTransitions, state.clips),
+        };
+      }
+
+      const nextTransitions = [
+        ...state.transitions,
+        {
+          id: createTransitionId(),
+          trackId: fromClip.trackId,
+          fromClipId,
+          toClipId,
+          type: sanitizedConfig.type,
+          easing: sanitizedConfig.easing,
+          duration,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ];
+
+      return {
+        transitions: sanitizeTransitionList(nextTransitions, state.clips),
+      };
+    }),
+
+  updateTransition: (transitionId, updates = {}) =>
+    set((state) => {
+      if (!transitionId) return state;
+      const index = state.transitions.findIndex((transition) => transition.id === transitionId);
+      if (index === -1) return state;
+
+      const transition = state.transitions[index];
+      const fromClip = state.clips.find((clip) => clip.id === transition.fromClipId);
+      const toClip = state.clips.find((clip) => clip.id === transition.toClipId);
+      if (!fromClip || !toClip) {
+        const filtered = state.transitions.filter((t) => t.id !== transitionId);
+        return {
+          transitions: sanitizeTransitionList(filtered, state.clips),
+        };
+      }
+
+      const track = state.tracks.find((t) => t.id === fromClip.trackId);
+      if (track?.isLocked) {
+        console.warn(`Track "${track.name}" is locked; transition update cancelled.`);
+        return state;
+      }
+
+      const maxDuration = Math.max(
+        MIN_TRANSITION_DURATION,
+        Math.min(getClipDuration(fromClip), getClipDuration(toClip))
+      );
+
+      if (maxDuration <= 0) {
+        const filtered = state.transitions.filter((t) => t.id !== transitionId);
+        return {
+          transitions: sanitizeTransitionList(filtered, state.clips),
+        };
+      }
+
+      const sanitizedConfig = sanitizeTransitionConfig(
+        {
+          type: updates.type ?? transition.type,
+          easing: updates.easing ?? transition.easing,
+          duration: updates.duration ?? transition.duration,
+        },
+        { maxDuration }
+      );
+
+      const nextTransitions = [...state.transitions];
+      nextTransitions[index] = {
+        ...transition,
+        type: sanitizedConfig.type,
+        easing: sanitizedConfig.easing,
+        duration: Math.min(sanitizedConfig.duration, maxDuration),
+        trackId: fromClip.trackId,
+        updatedAt: new Date().toISOString(),
+      };
+
+      return {
+        transitions: sanitizeTransitionList(nextTransitions, state.clips),
+      };
+    }),
+
+  removeTransition: (transitionId) =>
+    set((state) => {
+      if (!transitionId) return state;
+      const filtered = state.transitions.filter((transition) => transition.id !== transitionId);
+      if (filtered.length === state.transitions.length) {
+        return state;
+      }
+      return {
+        transitions: sanitizeTransitionList(filtered, state.clips),
+      };
+    }),
+
+  removeTransitionBetween: (fromClipId, toClipId) =>
+    set((state) => {
+      if (!fromClipId || !toClipId) return state;
+      const filtered = state.transitions.filter(
+        (transition) =>
+          !(
+            transition.fromClipId === fromClipId &&
+            transition.toClipId === toClipId
+          )
+      );
+      if (filtered.length === state.transitions.length) {
+        return state;
+      }
+      return {
+        transitions: sanitizeTransitionList(filtered, state.clips),
+      };
+    }),
 }));

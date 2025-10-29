@@ -10,6 +10,7 @@ const resetStores = () => {
   useTimelineStore.setState({
     tracks: DEFAULT_TRACKS.map((track) => ({ ...track })),
     clips: [],
+    transitions: [],
     playheadPosition: 0,
     zoom: 1,
     snapToGrid: true,

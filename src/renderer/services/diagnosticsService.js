@@ -25,6 +25,7 @@ export async function exportDiagnostics() {
   const summary = {
     clips: timeline.clips.length,
     tracks: Array.isArray(timeline.tracks) ? timeline.tracks.length : undefined,
+    transitions: Array.isArray(timeline.transitions) ? timeline.transitions.length : undefined,
     mediaFiles: media.files.length,
     selectedFile: media.selectedFile,
     playhead: timeline.playheadPosition,
@@ -76,5 +77,4 @@ export async function exportDiagnostics() {
   await window.electronAPI.saveFile(filePath, buffer);
   return filePath;
 }
-
 

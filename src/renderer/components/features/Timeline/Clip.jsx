@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
-import { Move } from 'lucide-react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { Move, Type, GitMerge } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
@@ -8,6 +8,20 @@ import { Slider } from '@/components/ui/Slider';
 import { useWaveformStore } from '@/store/waveformStore';
 
 const SNAP_THRESHOLD = 0.5; // seconds
+const MIN_TRANSITION_DURATION = 0.1;
+const DEFAULT_TRANSITION_DURATION = 0.5;
+const TRANSITION_TYPE_LABELS = {
+  crossfade: 'Crossfade',
+  'dip-to-black': 'Dip to Black',
+  slide: 'Slide',
+};
+
+const TRANSITION_EASING_OPTIONS = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'ease-in', label: 'Ease In' },
+  { value: 'ease-out', label: 'Ease Out' },
+  { value: 'ease-in-out', label: 'Ease In/Out' },
+];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const clamp01 = (value) => clamp(value, 0, 1);
@@ -43,22 +57,42 @@ const cloneMeta = (meta) => {
   }
 };
 
+const resolveClipDuration = (candidate) => {
+  if (!candidate) return 0;
+  if (Number.isFinite(candidate.duration)) {
+    return Math.max(0, candidate.duration);
+  }
+  const start = Number(candidate.start) || 0;
+  const end = Number(candidate.end) || start;
+  return Math.max(0, end - start);
+};
+
 export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay = () => {} }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState(null);
   const clipRef = useRef(null);
+  const transitionPopoverRef = useRef(null);
+  const incomingHandleRef = useRef(null);
+  const outgoingHandleRef = useRef(null);
+  const [activeTransitionSide, setActiveTransitionSide] = useState(null);
+  const [transitionDraft, setTransitionDraft] = useState(null);
   
   const { 
     updateClip, 
     removeClip, 
     trimClip, 
     clips, 
+    transitions,
     snapToGrid,
     selectedClipId,
     setSelectedClip,
     moveClipToTrack,
     tracks,
+    setTransitionBetween,
+    updateTransition,
+    removeTransition,
+    removeTransitionBetween,
   } = useTimelineStore();
   const mediaFile = useMediaStore(
     useCallback(
@@ -93,6 +127,141 @@ export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay 
   const isTrackMuted = parentTrack?.isMuted ?? false;
   const [isOverlayDialogOpen, setIsOverlayDialogOpen] = useState(false);
   const clipVolume = clip.volume ?? 100;
+  const siblingClips = useMemo(
+    () =>
+      clips
+        .filter((candidate) => candidate.trackId === clip.trackId)
+        .slice()
+        .sort((a, b) => {
+          const aStart = Number.isFinite(a.start) ? a.start : 0;
+          const bStart = Number.isFinite(b.start) ? b.start : 0;
+          return aStart - bStart;
+        }),
+    [clips, clip.trackId]
+  );
+  const clipIndex = useMemo(
+    () => siblingClips.findIndex((candidate) => candidate.id === clip.id),
+    [siblingClips, clip.id]
+  );
+  const previousClip = clipIndex > 0 ? siblingClips[clipIndex - 1] : null;
+  const nextClip =
+    clipIndex >= 0 && clipIndex < siblingClips.length - 1
+      ? siblingClips[clipIndex + 1]
+      : null;
+
+  const incomingTransition = useMemo(() => {
+    if (!previousClip) return null;
+    return (
+      transitions.find(
+        (transition) =>
+          transition.fromClipId === previousClip.id &&
+          transition.toClipId === clip.id
+      ) || null
+    );
+  }, [transitions, previousClip, clip.id]);
+
+  const outgoingTransition = useMemo(() => {
+    if (!nextClip) return null;
+    return (
+      transitions.find(
+        (transition) =>
+          transition.fromClipId === clip.id && transition.toClipId === nextClip.id
+      ) || null
+    );
+  }, [transitions, clip.id, nextClip]);
+
+  const clipDurationSeconds = resolveClipDuration(clip);
+  const previousClipDuration = resolveClipDuration(previousClip);
+  const nextClipDuration = resolveClipDuration(nextClip);
+
+  const maxIncomingDuration = previousClip
+    ? Math.max(
+        MIN_TRANSITION_DURATION,
+        Math.min(previousClipDuration, clipDurationSeconds)
+      )
+    : 0;
+
+  const maxOutgoingDuration = nextClip
+    ? Math.max(
+        MIN_TRANSITION_DURATION,
+        Math.min(clipDurationSeconds, nextClipDuration)
+      )
+    : 0;
+
+  const canConfigureIncoming = Boolean(
+    previousClip && maxIncomingDuration >= MIN_TRANSITION_DURATION
+  );
+  const canConfigureOutgoing = Boolean(
+    nextClip && maxOutgoingDuration >= MIN_TRANSITION_DURATION
+  );
+  const isTransitionEditorOpen = activeTransitionSide != null;
+
+  useEffect(() => {
+    if (!isTransitionEditorOpen) {
+      setTransitionDraft(null);
+      return undefined;
+    }
+
+    const handleClickOutside = (event) => {
+      const popoverEl = transitionPopoverRef.current;
+      const incomingEl = incomingHandleRef.current;
+      const outgoingEl = outgoingHandleRef.current;
+      if (
+        popoverEl &&
+        !popoverEl.contains(event.target) &&
+        (!incomingEl || !incomingEl.contains(event.target)) &&
+        (!outgoingEl || !outgoingEl.contains(event.target))
+      ) {
+        setActiveTransitionSide(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isTransitionEditorOpen]);
+
+  useEffect(() => {
+    if (!activeTransitionSide) {
+      return;
+    }
+    const current =
+      activeTransitionSide === 'in' ? incomingTransition : outgoingTransition;
+    if (!current) {
+      return;
+    }
+
+    const maxDuration =
+      activeTransitionSide === 'in' ? maxIncomingDuration : maxOutgoingDuration;
+    const constrainedDuration = Math.min(
+      Math.max(MIN_TRANSITION_DURATION, Number(current.duration) || DEFAULT_TRANSITION_DURATION),
+      maxDuration || DEFAULT_TRANSITION_DURATION
+    );
+    const nextDraft = {
+      type: current.type || 'crossfade',
+      easing: current.easing || 'ease-in-out',
+      duration: constrainedDuration,
+    };
+
+    setTransitionDraft((prev) => {
+      if (
+        prev &&
+        prev.type === nextDraft.type &&
+        prev.easing === nextDraft.easing &&
+        Math.abs((prev.duration ?? 0) - (nextDraft.duration ?? 0)) < 0.001
+      ) {
+        return prev;
+      }
+      return nextDraft;
+    });
+  }, [
+    activeTransitionSide,
+    incomingTransition,
+    outgoingTransition,
+    maxIncomingDuration,
+    maxOutgoingDuration,
+  ]);
 
   const baseRecordingMeta = useMemo(() => {
     if (clip.recordingMeta) {
@@ -379,7 +548,146 @@ export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay 
     },
     [clip.id, isTrackLocked, updateClip]
   );
-  
+
+  const handleOpenTransitionEditor = useCallback(
+    (side) => {
+      if (isTrackLocked) return;
+      if (side === 'in' && !canConfigureIncoming) return;
+      if (side === 'out' && !canConfigureOutgoing) return;
+
+      const existing = side === 'in' ? incomingTransition : outgoingTransition;
+      const maxDuration =
+        side === 'in' ? maxIncomingDuration : maxOutgoingDuration;
+
+      const fallbackDuration = Math.min(
+        Math.max(MIN_TRANSITION_DURATION, DEFAULT_TRANSITION_DURATION),
+        maxDuration || DEFAULT_TRANSITION_DURATION
+      );
+
+      setTransitionDraft({
+        type: existing?.type || 'crossfade',
+        easing: existing?.easing || 'ease-in-out',
+        duration: Math.min(
+          Math.max(MIN_TRANSITION_DURATION, Number(existing?.duration) || fallbackDuration),
+          maxDuration || fallbackDuration
+        ),
+      });
+      setActiveTransitionSide(side);
+    },
+    [
+      canConfigureIncoming,
+      canConfigureOutgoing,
+      incomingTransition,
+      isTrackLocked,
+      maxIncomingDuration,
+      maxOutgoingDuration,
+      outgoingTransition,
+    ]
+  );
+
+  const handleTransitionChange = useCallback(
+    (side, key, rawValue) => {
+      if (isTrackLocked || !side) return;
+      const neighborClip = side === 'in' ? previousClip : nextClip;
+      if (!neighborClip) return;
+      const existing = side === 'in' ? incomingTransition : outgoingTransition;
+      const maxDuration =
+        side === 'in' ? maxIncomingDuration : maxOutgoingDuration;
+      if (maxDuration < MIN_TRANSITION_DURATION) {
+        return;
+      }
+
+      const baseDraft = transitionDraft || {
+        type: existing?.type || 'crossfade',
+        easing: existing?.easing || 'ease-in-out',
+        duration:
+          existing?.duration ??
+          Math.min(DEFAULT_TRANSITION_DURATION, maxDuration || DEFAULT_TRANSITION_DURATION),
+      };
+
+      const nextDraft = { ...baseDraft, [key]: rawValue };
+
+      if (key === 'duration') {
+        const numericValue = Number(rawValue);
+        nextDraft.duration = Math.min(
+          Math.max(
+            MIN_TRANSITION_DURATION,
+            Number.isFinite(numericValue) ? numericValue : baseDraft.duration
+          ),
+          maxDuration
+        );
+      }
+
+      setTransitionDraft(nextDraft);
+
+      const fromClipId = side === 'in' ? neighborClip.id : clip.id;
+      const toClipId = side === 'in' ? clip.id : neighborClip.id;
+
+      if (existing) {
+        updateTransition(existing.id, nextDraft);
+      } else {
+        setTransitionBetween(fromClipId, toClipId, nextDraft);
+      }
+    },
+    [
+      clip.id,
+      incomingTransition,
+      isTrackLocked,
+      maxIncomingDuration,
+      maxOutgoingDuration,
+      nextClip,
+      outgoingTransition,
+      previousClip,
+      setTransitionBetween,
+      transitionDraft,
+      updateTransition,
+    ]
+  );
+
+  const handleTransitionRemove = useCallback(
+    (side) => {
+      if (isTrackLocked || !side) return;
+      const neighborClip = side === 'in' ? previousClip : nextClip;
+      const existing = side === 'in' ? incomingTransition : outgoingTransition;
+      if (existing) {
+        removeTransition(existing.id);
+      } else if (neighborClip) {
+        const fromClipId = side === 'in' ? neighborClip.id : clip.id;
+        const toClipId = side === 'in' ? clip.id : neighborClip.id;
+        removeTransitionBetween(fromClipId, toClipId);
+      }
+      setTransitionDraft(null);
+      setActiveTransitionSide(null);
+    },
+    [
+      clip.id,
+      incomingTransition,
+      isTrackLocked,
+      nextClip,
+      outgoingTransition,
+      previousClip,
+      removeTransition,
+      removeTransitionBetween,
+    ]
+  );
+
+  const activeTransition =
+    activeTransitionSide === 'in' ? incomingTransition : outgoingTransition;
+  const activeMaxDuration =
+    activeTransitionSide === 'in' ? maxIncomingDuration : maxOutgoingDuration;
+  const transitionTitle =
+    activeTransitionSide === 'in' ? 'Incoming Transition' : 'Outgoing Transition';
+  const incomingTitle = incomingTransition
+    ? `${TRANSITION_TYPE_LABELS[incomingTransition.type] || 'Transition'} · ${Number(
+        incomingTransition.duration ?? 0
+      ).toFixed(2)}s`
+    : 'Add transition';
+  const outgoingTitle = outgoingTransition
+    ? `${TRANSITION_TYPE_LABELS[outgoingTransition.type] || 'Transition'} · ${Number(
+        outgoingTransition.duration ?? 0
+      ).toFixed(2)}s`
+    : 'Add transition';
+
   return (
     <>
       {/* Snap Guide Line */}
@@ -538,6 +846,176 @@ export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay 
               </button>
             )}
           </>
+        )}
+
+        {canConfigureIncoming && (
+          <button
+            type="button"
+            ref={incomingHandleRef}
+            className={cn(
+              'absolute top-1/2 -left-3 h-6 w-6 -translate-y-1/2 rounded-full border border-white/20 bg-zinc-900/80 text-white shadow transition',
+              incomingTransition && 'border-indigo-300/70 bg-indigo-500/80 text-white',
+              isTrackLocked && 'opacity-40 cursor-not-allowed',
+              !isTrackLocked && 'hover:bg-zinc-800/80'
+            )}
+            disabled={isTrackLocked}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isTrackLocked) return;
+              handleOpenTransitionEditor('in');
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            title={incomingTitle}
+          >
+            <GitMerge className="h-4 w-4 -scale-x-100" />
+          </button>
+        )}
+
+        {canConfigureOutgoing && (
+          <button
+            type="button"
+            ref={outgoingHandleRef}
+            className={cn(
+              'absolute top-1/2 -right-3 h-6 w-6 -translate-y-1/2 rounded-full border border-white/20 bg-zinc-900/80 text-white shadow transition',
+              outgoingTransition && 'border-indigo-300/70 bg-indigo-500/80 text-white',
+              isTrackLocked && 'opacity-40 cursor-not-allowed',
+              !isTrackLocked && 'hover:bg-zinc-800/80'
+            )}
+            disabled={isTrackLocked}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isTrackLocked) return;
+              handleOpenTransitionEditor('out');
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            title={outgoingTitle}
+          >
+            <GitMerge className="h-4 w-4" />
+          </button>
+        )}
+
+        {isTransitionEditorOpen && (
+          <div
+            ref={transitionPopoverRef}
+            className={cn(
+              'absolute top-full z-30 mt-2 w-64 rounded-lg border border-white/10 bg-zinc-900/95 p-3 shadow-2xl backdrop-blur',
+              activeTransitionSide === 'in' ? 'left-0' : 'right-0'
+            )}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+                {transitionTitle}
+              </span>
+              <button
+                type="button"
+                className="h-6 w-6 rounded-md border border-white/10 text-zinc-300 hover:bg-zinc-800/80 transition"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveTransitionSide(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <div>
+                <span className="mb-1 block text-[10px] uppercase tracking-wide text-zinc-500">
+                  Type
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  {Object.entries(TRANSITION_TYPE_LABELS).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={cn(
+                        'rounded-md border border-white/10 px-2 py-1 text-[11px] text-zinc-300 transition',
+                        transitionDraft?.type === value
+                          ? 'border-indigo-300/60 bg-indigo-500/30 text-indigo-100'
+                          : 'hover:bg-zinc-800/70'
+                      )}
+                      onClick={() => handleTransitionChange(activeTransitionSide, 'type', value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-[10px] uppercase tracking-wide text-zinc-500">
+                  Duration {transitionDraft?.duration ? `(${Number(transitionDraft.duration).toFixed(2)}s)` : ''}
+                </span>
+                <Slider
+                  min={MIN_TRANSITION_DURATION}
+                  max={Math.max(MIN_TRANSITION_DURATION, activeMaxDuration || MIN_TRANSITION_DURATION)}
+                  step={0.1}
+                  value={
+                    transitionDraft?.duration ??
+                    Math.min(
+                      DEFAULT_TRANSITION_DURATION,
+                      activeMaxDuration || DEFAULT_TRANSITION_DURATION
+                    )
+                  }
+                  onChange={(value) =>
+                    handleTransitionChange(activeTransitionSide, 'duration', Array.isArray(value) ? value[0] : value)
+                  }
+                  className="w-full"
+                />
+                <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
+                  <span>{MIN_TRANSITION_DURATION.toFixed(1)}s min</span>
+                  <span>
+                    {Math.max(
+                      MIN_TRANSITION_DURATION,
+                      activeMaxDuration || MIN_TRANSITION_DURATION
+                    ).toFixed(1)}
+                    s max
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-[10px] uppercase tracking-wide text-zinc-500">
+                  Curve
+                </span>
+                <select
+                  value={transitionDraft?.easing || 'ease-in-out'}
+                  onChange={(event) =>
+                    handleTransitionChange(activeTransitionSide, 'easing', event.target.value)
+                  }
+                  className="w-full rounded-md border border-white/10 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {TRANSITION_EASING_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-zinc-500">
+                  {activeTransition
+                    ? `${TRANSITION_TYPE_LABELS[activeTransition.type] || 'Transition'} • ${Number(
+                        activeTransition.duration ?? 0
+                      ).toFixed(2)}s`
+                    : 'Awaiting first adjustment'}
+                </span>
+                <button
+                  type="button"
+                  className="rounded-md border border-red-500/40 px-2 py-1 text-[11px] text-red-200 hover:bg-red-500/10 transition disabled:opacity-40"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleTransitionRemove(activeTransitionSide);
+                  }}
+                  disabled={!activeTransition}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {clipMediaType === 'audio' && (

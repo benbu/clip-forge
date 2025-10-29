@@ -37,6 +37,17 @@ export function Track({
     [track.volume]
   );
   const trackHeight = useMemo(() => Math.max(0.5, Math.min(3, track.height ?? 1)), [track.height]);
+  const sortedClips = useMemo(
+    () =>
+      clips
+        .slice()
+        .sort((a, b) => {
+          const aStart = Number.isFinite(a.start) ? a.start : 0;
+          const bStart = Number.isFinite(b.start) ? b.start : 0;
+          return aStart - bStart;
+        }),
+    [clips]
+  );
 
   const handleVolumeChange = useCallback(
     (event) => {
@@ -225,7 +236,7 @@ export function Track({
 
         {/* Clip Area */}
         <div className="flex-1 relative overflow-visible">
-          {clips.map(clip => (
+          {sortedClips.map(clip => (
             <Clip
               key={clip.id}
               clip={clip}
