@@ -207,6 +207,22 @@ export class ExportService {
         throw new Error('Export cancelled');
       }
 
+      // Check disk free space (best-effort)
+      try {
+        if (window.electronAPI?.getDiskFree) {
+          const info = await window.electronAPI.getDiskFree(filePath);
+          const freeBytes = info?.bytes != null ? Number(info.bytes) : null;
+          const needed = exportedBuffer.byteLength + 200 * 1024 * 1024; // add 200MB safety margin
+          if (Number.isFinite(freeBytes) && freeBytes < needed) {
+            const err = new Error('Insufficient disk space for export');
+            err.details = `Free: ${Math.round(freeBytes / (1024*1024))} MB, Needed: ${Math.round(needed / (1024*1024))} MB`;
+            throw err;
+          }
+        }
+      } catch (spaceErr) {
+        throw spaceErr;
+      }
+
       await this.saveExport(filePath, exportedBuffer);
       
       this.updateProgress(100);

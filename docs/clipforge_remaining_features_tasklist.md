@@ -37,10 +37,11 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
   - Progress: performance overlay (FPS + JS heap) shipped; profiling/optimizations pending.
 - [x] Move heavy FFmpeg operations onto dedicated worker threads/processes to keep the renderer responsive and monitor worker crashes.
 - [x] Implement structured logging and crash reporting hooks (local log files, optional diagnostics export) respecting user privacy.
-- [ ] Add configurable autosave intervals with versioned project backups and recovery prompts after crashes.
-  - Planned: settings-backed autosave interval, versioned backups, crash recovery prompt.
-- [ ] Establish resource guardrails (disk space warnings before export, RAM usage monitoring) to avoid exceeding the 1 GB memory target.
-  - Progress: RAM guardrail in export flow (warnings >900 MB, hard stop >1.1 GB); disk checks pending.
+- [x] Add configurable autosave intervals with versioned project backups and recovery prompts after crashes.
+  - Delivered: settings-backed autosave interval, versioned backups, crash recovery prompt.
+- [x] Establish resource guardrails (disk space warnings before export, RAM usage monitoring) to avoid exceeding the 1 GB memory target.
+  - Delivered: RAM guardrail in export flow (warnings >900 MB, hard stop >1.1 GB); disk free check before export.
+- [x] Provide diagnostics export (logs/perf/state/settings) for support.
 
 ## 6. QA, Tooling, and Release Readiness
 - [x] Stand up Vitest + React Testing Library for unit/integration coverage of state stores, timeline math, and recording utilities.

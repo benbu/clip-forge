@@ -3,6 +3,7 @@ import { Switch } from '../../ui/Switch';
 import { Slider } from '../../ui/Slider';
 import { Button } from '../../ui/Button';
 import { useSettingsStore } from '@/store/settingsStore';
+import { exportDiagnostics } from '@/services/diagnosticsService';
 
 export function AdvancedSettings() {
   const autosaveMinutes = useSettingsStore((s) => s.autosaveMinutes);
@@ -90,6 +91,29 @@ export function AdvancedSettings() {
             </Button>
             <Button variant="ghost" className="flex-1" size="sm">
               Import Settings
+            </Button>
+          </div>
+          <div className="mt-2">
+            <Button
+              variant="secondary"
+              className="w-full"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const path = await exportDiagnostics();
+                  if (path) {
+                    console.log('Diagnostics saved to', path);
+                    alert(`Diagnostics saved to:\n${path}`);
+                  } else {
+                    alert('Unable to save diagnostics (no path)');
+                  }
+                } catch (e) {
+                  console.error('Diagnostics export failed', e);
+                  alert('Diagnostics export failed');
+                }
+              }}
+            >
+              Export Diagnostics
             </Button>
           </div>
         </div>

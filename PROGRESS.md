@@ -214,8 +214,9 @@ Delivered:
 - Global renderer error/crash reporter writing to `userData/logs/clipforge.log`
 - FFmpeg error monitoring with scoped structured logs (`scope: 'ffmpeg'`)
 - Memory guardrail in export flow (warn >900 MB, stop >1.1 GB)
+ - Disk space guard before export (pre-check free space with margin)
+ - Autosave with versioned backups and crash recovery prompt
+ - Diagnostics export (env, perf snapshot, state & settings) from Advanced Settings
 
 Remaining:
 - Profiling runs on large timelines and targeted optimizations
-- Configurable autosave with versioned backups and recovery prompts
-- Disk space guardrails prior to long exports

@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateRecordingStatus: (payload) => ipcRenderer.invoke('updateRecordingStatus', payload),
   fileExists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
   openVideoDialog: () => ipcRenderer.invoke('dialog:openVideo'),
+  getDiskFree: (targetPath) => ipcRenderer.invoke('system:getDiskFree', targetPath),
+  getUserDataPath: () => ipcRenderer.invoke('system:getUserDataPath'),
+  saveJsonDialog: (suggestedName) => ipcRenderer.invoke('dialog:saveJson', suggestedName),
   onTrayRecordingCommand: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, command) => {

@@ -8,6 +8,7 @@ export const usePerfStore = create((set, get) => ({
   _rafCount: 0,
   _lastFpsAt: performance.now(),
   _timerId: null,
+  fpsHistory: [], // last ~60 samples
 
   toggleOverlay: () => set((s) => ({ overlayVisible: !s.overlayVisible })),
 
@@ -30,7 +31,9 @@ export const usePerfStore = create((set, get) => ({
     const now = ts || performance.now();
     if (now - state._lastFpsAt >= 1000) {
       const fps = state._rafCount;
-      set({ fps, _rafCount: 0, _lastFpsAt: now });
+      const nextHistory = (get().fpsHistory || []).slice(-59);
+      nextHistory.push(fps);
+      set({ fps, _rafCount: 0, _lastFpsAt: now, fpsHistory: nextHistory });
     }
     requestAnimationFrame(get()._tick);
   },
@@ -47,6 +50,15 @@ export const usePerfStore = create((set, get) => ({
     const { _timerId } = get();
     if (_timerId) clearInterval(_timerId);
     set({ _timerId: null });
+  },
+
+  getSnapshot: () => {
+    const { fps, heapUsedMB, fpsHistory } = get();
+    const samples = fpsHistory && fpsHistory.length ? fpsHistory : [fps];
+    const avg = Math.round((samples.reduce((a, b) => a + b, 0) / samples.length) * 10) / 10;
+    const min = Math.min(...samples);
+    const max = Math.max(...samples);
+    return { fps, avgFps: avg, minFps: min, maxFps: max, heapUsedMB, samples };
   },
 }));
 

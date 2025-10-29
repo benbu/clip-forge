@@ -11,6 +11,7 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const { exec } = require('child_process');
 
 // Mitigate Windows flicker/occlusion issues and allow optional GPU disable
 if (process.platform === 'win32') {
@@ -381,6 +382,61 @@ ipcMain.handle('dialog:openVideo', async () => {
     return result.filePaths[0];
   } catch (error) {
     console.error('Error opening file dialog:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('system:getDiskFree', async (_event, targetPath) => {
+  try {
+    const platform = process.platform;
+    if (platform === 'win32') {
+      // Extract drive letter (default to system drive)
+      const m = String(targetPath || '').match(/^[A-Za-z]:/);
+      const drive = (m ? m[0].slice(0, 1) : (process.env.SystemDrive || 'C:')).replace(':', '');
+      const cmd = `powershell -NoProfile -Command "(Get-PSDrive -Name ${drive}).Free"`;
+      const free = await new Promise((resolve, reject) => {
+        exec(cmd, { windowsHide: true }, (err, stdout) => {
+          if (err) return resolve(null);
+          const num = parseInt(String(stdout).replace(/[^0-9]/g, ''), 10);
+          resolve(Number.isFinite(num) ? num : null);
+        });
+      });
+      return { bytes: free };
+    }
+    // macOS/Linux: use df -k
+    const pathArg = targetPath ? `'${targetPath.replace(/'/g, "'\\''")}'` : '/';
+    const cmd = `df -k ${pathArg} | tail -1 | awk '{print $4}'`;
+    const freeKB = await new Promise((resolve) => {
+      exec(cmd, (err, stdout) => {
+        if (err) return resolve(null);
+        const num = parseInt(String(stdout).trim(), 10);
+        resolve(Number.isFinite(num) ? num : null);
+      });
+    });
+    return { bytes: freeKB != null ? freeKB * 1024 : null };
+  } catch (error) {
+    return { bytes: null };
+  }
+});
+
+ipcMain.handle('system:getUserDataPath', async () => {
+  try {
+    return app.getPath('userData');
+  } catch (_) {
+    return null;
+  }
+});
+
+ipcMain.handle('dialog:saveJson', async (_event, suggestedName = 'clipforge-diagnostics.json') => {
+  try {
+    const result = await dialog.showSaveDialog({
+      title: 'Save Diagnostics',
+      defaultPath: suggestedName,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (result.canceled) return null;
+    return result.filePath;
+  } catch (error) {
     return null;
   }
 });

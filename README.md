@@ -34,6 +34,9 @@ Desktop video editor built with Electron, React, and Tailwind CSS.
 - Global error/crash reporter: renderer errors and unhandled rejections are logged to `userData/logs/clipforge.log`.
 - FFmpeg monitoring: structured logs with scope `ffmpeg` for init/trim/merge/export/thumbnail failures.
 - Memory guardrails: pre-export warnings above ~900 MB and hard stop above ~1.1 GB to avoid crashes.
+ - Disk guard: checks free disk space before saving exports and aborts if insufficient.
+ - Diagnostics export: one-click JSON snapshot (env, perf, state, settings) from Advanced Settings.
+ - Autosave & backups: configurable autosave interval, versioned backups, crash recovery prompt on next launch.
 
 ✅ **Ready to build and distribute!** Package the app with `npm run build`
 
