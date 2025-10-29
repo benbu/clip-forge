@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+const EPSILON = 0.0001;
+
 const withDefaultTrackState = (track, index = 0) => ({
   id: track.id ?? `${track.type ?? 'video'}-${Date.now()}`,
   type: track.type ?? 'video',
@@ -19,6 +21,54 @@ export const DEFAULT_TRACKS = [
   withDefaultTrackState({ id: 'video-2', type: 'video', name: 'Video Track 2', order: 2 }, 2),
   withDefaultTrackState({ id: 'audio-1', type: 'audio', name: 'Audio Track 1', order: 3 }, 3),
 ];
+
+const cloneClip = (clip) => ({ ...clip });
+
+const normalizeClipTiming = (clip) => {
+  const start = Number.isFinite(clip.start) ? clip.start : 0;
+  const end = Number.isFinite(clip.end)
+    ? clip.end
+    : start + (Number.isFinite(clip.duration) ? clip.duration : 0);
+  const duration = Math.max(0, Number.isFinite(clip.duration) ? clip.duration : end - start);
+  return { start, end, duration };
+};
+
+const collapseClipsForTrack = (clips, trackId, fromTime = 0) => {
+  const working = clips.map(cloneClip);
+  const trackClips = working
+    .filter((clip) => clip.trackId === trackId)
+    .sort((a, b) => normalizeClipTiming(a).start - normalizeClipTiming(b).start);
+
+  if (!trackClips.length) {
+    return working;
+  }
+
+  let cursor = Math.max(0, fromTime);
+
+  for (const clip of trackClips) {
+    const { start, end, duration } = normalizeClipTiming(clip);
+
+    if (end <= Math.max(cursor, fromTime) + EPSILON) {
+      cursor = Math.max(cursor, end);
+      continue;
+    }
+
+    const nextStart = cursor;
+    const nextEnd = nextStart + duration;
+
+    clip.start = Number.parseFloat(nextStart.toFixed(4));
+    clip.end = Number.parseFloat(nextEnd.toFixed(4));
+    clip.duration = duration;
+
+    if (Number.isFinite(clip.endTrim)) {
+      clip.endTrim = Math.min(clip.duration, Math.max(0, clip.endTrim));
+    }
+
+    cursor = nextEnd;
+  }
+
+  return working;
+};
 
 /**
  * Timeline Store - Manages timeline clips, playhead position, and zoom
@@ -391,7 +441,12 @@ export const useTimelineStore = create((set, get) => ({
       const remaining = state.clips.filter((c) => c.id !== clipId);
       const nextSelected =
         state.selectedClipId === clipId ? null : state.selectedClipId;
-      return { clips: remaining, selectedClipId: nextSelected };
+      const collapsed = collapseClipsForTrack(
+        remaining,
+        targetClip.trackId,
+        Number.isFinite(targetClip.start) ? targetClip.start : 0
+      );
+      return { clips: collapsed, selectedClipId: nextSelected };
     }),
 
   reorderClips: (clipId, newPosition, trackId) =>
@@ -446,33 +501,47 @@ export const useTimelineStore = create((set, get) => ({
 
   // Trim clip
   trimClip: (clipId, start, end) =>
-    set((state) => ({
-      clips: state.clips.map((clip) => {
+    set((state) => {
+      const targetClip = state.clips.find((clip) => clip.id === clipId);
+      if (!targetClip) {
+        return state;
+      }
+
+      const track = state.tracks.find((t) => t.id === targetClip.trackId);
+      if (track?.isLocked) {
+        return state;
+      }
+
+      const prevStart = targetClip.start ?? 0;
+      const nextClips = state.clips.map((clip) => {
         if (clip.id !== clipId) return clip;
 
-        const track = state.tracks.find((t) => t.id === clip.trackId);
-        if (track?.isLocked) {
-          return clip;
-        }
-
         const prevSourceIn = clip.sourceIn ?? 0;
-        const prevStart = clip.start ?? 0;
-        const prevEnd = clip.end ?? prevStart;
-        const deltaLeft = start - prevStart;
-        const duration = Math.max(0, end - start);
+        const newStart = Math.max(0, start);
+        const newEnd = Math.max(newStart, end);
+        const duration = Math.max(0, newEnd - newStart);
+        const deltaLeft = Math.max(0, newStart - prevStart);
         const newSourceIn = Math.max(0, prevSourceIn + deltaLeft);
         const newSourceOut = newSourceIn + duration;
 
         return {
           ...clip,
-          start,
-          end,
+          start: newStart,
+          end: newEnd,
           duration,
           sourceIn: newSourceIn,
           sourceOut: newSourceOut,
         };
-      }),
-    })),
+      });
+
+      const collapsed = collapseClipsForTrack(
+        nextClips,
+        targetClip.trackId,
+        Math.min(prevStart, start)
+      );
+
+      return { clips: collapsed };
+    }),
 
   // Split clip at current playhead
   splitClipAtPlayhead: (clipId) => set((state) => {

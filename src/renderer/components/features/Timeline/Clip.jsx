@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useCallback } from 'react';
-import { Move } from 'lucide-react';
+import { Move, Type } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
@@ -42,7 +42,7 @@ const cloneMeta = (meta) => {
   }
 };
 
-export function Clip({ clip, zoom, visibleDuration, onSelect }) {
+export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay = () => {} }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState(null);
@@ -67,6 +67,16 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
   );
   const isSelected = selectedClipId === clip.id;
   const clipMediaType = clip.mediaType ?? 'video';
+  const isTextOverlayClip = clipMediaType === 'overlay' && (clip.overlayKind === 'text' || clip.textOverlay);
+  const textOverlaySummary = isTextOverlayClip
+    ? (() => {
+        const source = clip.textOverlay?.text ?? clip.name ?? '';
+        const trimmed = source.trim();
+        if (!trimmed) return 'Text Overlay';
+        return trimmed.split('\n')[0].slice(0, 64) || 'Text Overlay';
+      })()
+    : null;
+  const displayName = textOverlaySummary ?? clip.name ?? mediaFile?.name ?? 'Clip';
   const eligibleTracks = useMemo(() => {
     if (clipMediaType === 'audio') {
       return tracks.filter((track) => track.type === 'audio');
@@ -367,7 +377,10 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
         ref={clipRef}
         className={cn(
           'absolute top-2 bottom-2 rounded-md border-2 transition-all group',
-          'bg-gradient-to-r from-blue-600/80 to-purple-600/80',
+          'bg-gradient-to-r',
+          isTextOverlayClip
+            ? 'from-amber-500/80 to-rose-500/80'
+            : 'from-blue-600/80 to-purple-600/80',
           isSelected && 'ring-2 ring-indigo-400 border-indigo-400 z-10',
           !isSelected && 'border-transparent',
           isHovered && 'shadow-lg',
@@ -392,12 +405,18 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
       >
         {/* Clip Thumbnail */}
         <div className="w-12 h-full bg-black/30 rounded-l-md flex items-center justify-center">
-          <span className="text-2xl">🎬</span>
+          {isTextOverlayClip ? (
+            <Type className="h-5 w-5 text-amber-200" />
+          ) : (
+            <span className="text-2xl">🎬</span>
+          )}
         </div>
         
         {/* Clip Info */}
         <div className="absolute left-12 top-1 right-2 flex items-center justify-between gap-2 pr-1">
-          <span className="text-xs text-white font-medium truncate">{clip.name}</span>
+          <span className="text-xs text-white font-medium truncate" title={displayName}>
+            {displayName}
+          </span>
           {hasOverlay && clipMediaType !== 'audio' && (
             <button
               type="button"
@@ -415,6 +434,25 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
             >
               <Move className="h-3 w-3" />
               PiP
+            </button>
+          )}
+          {isTextOverlayClip && (
+            <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border border-amber-400/70 bg-amber-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-100 transition',
+                isTrackLocked && 'opacity-60 cursor-not-allowed'
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (isTrackLocked) return;
+                onEditTextOverlay(clip);
+              }}
+              disabled={isTrackLocked}
+              title="Edit text overlay"
+            >
+              <Type className="h-3 w-3" />
+              Edit
             </button>
           )}
         </div>

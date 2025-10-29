@@ -22,7 +22,9 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [x] Enable overlay layers for PiP clips with transform handles (position, scale) that feed into export compositing.
 - [ ] Render audio waveforms for timeline clips using precomputed peak data and allow per-clip gain adjustments.
 - [x] Add track-level controls: lock, mute/solo, visibility toggles, and adjustable track heights.
-- [ ] Implement ripple editing and intelligent gap handling when clips are trimmed or removed.
+- [x] Implement ripple editing and intelligent gap handling when clips are trimmed or removed.
+  - Timeline trims now close gaps automatically and reflow downstream clips in the affected track.
+  - Removing clips performs a ripple-collapse so subsequent clips advance without leaving dead air.
 - [ ] Improve timeline zooming with mousewheel + modifier shortcuts and a minimap for quick navigation.
 
 ## 4. Export & Delivery Improvements
@@ -50,7 +52,10 @@ Now that the MVP scope is delivered, this list captures every outstanding capabi
 - [ ] Produce an updated 3–5 minute demo video that walks through the post-MVP feature set for launch marketing.
 
 ## 7. Stretch Goals (From PRD §7)
-- [ ] Implement text overlays/annotations with styling controls and timeline keyframes for in/out timing.
+- [x] Implement text overlays/annotations with styling controls and timeline keyframes for in/out timing.
+  - Added dedicated text overlay editor dialog with typography, color, positioning, and fade controls.
+  - Timeline header exposes "Add Text" action; overlay clips can be edited in place on overlay tracks.
+  - Video playback now renders active text overlays with animated opacity/position based on clip keyframes.
 - [ ] Add transition effects (crossfade, dip to black, slide) with adjustable durations and easing curves.
 - [ ] Expand audio controls: per-clip volume envelopes, fade in/out presets, and master bus level meter.
 - [ ] Ship preset export templates for major platforms (YouTube 4K, TikTok 1080x1920@60fps, LinkedIn 1080p) with saved defaults.

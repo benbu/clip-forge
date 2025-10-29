@@ -20,6 +20,8 @@ Focus for next work session:
 - Missing-media detection + Relink workflow (secure IPC)
 - Bulk actions: multi-select, batch delete, add to timeline
  - Performance overlay (FPS + JS heap), crash reporting, FFmpeg monitoring, export memory guardrail
+- Rich text overlay creation/editing with animated keyframes and timeline playback rendering
+- Ripple editing and automatic gap collapse for clip trims/removals on unlocked tracks
 
 ### Git Status
 - Modified: `docs/clipforge_remaining_features_tasklist.md`

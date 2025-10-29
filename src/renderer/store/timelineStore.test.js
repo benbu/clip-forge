@@ -77,18 +77,24 @@ describe('timelineStore', () => {
   });
 
   it('recalculates clip duration when trimming in the timeline', () => {
-    const clip = { id: 'clip-trim', start: 0, end: 8, duration: 8 };
-    getState().addClip(clip);
+    const clipA = { id: 'clip-trim', start: 0, end: 6, duration: 6 };
+    const clipB = { id: 'clip-next', start: 6, end: 10, duration: 4 };
+    getState().addClip(clipA);
+    getState().addClip(clipB);
 
-    getState().trimClip('clip-trim', 1, 5);
-    const updated = getState().clips.find((c) => c.id === 'clip-trim');
+    getState().trimClip('clip-trim', 2, 4);
+    const clips = getState().clips;
+    const updated = clips.find((c) => c.id === 'clip-trim');
+    const shifted = clips.find((c) => c.id === 'clip-next');
 
     expect(updated).toBeDefined();
-    expect(updated?.start).toBe(1);
-    expect(updated?.end).toBe(5);
-    expect(updated?.duration).toBe(4);
-    expect(updated?.sourceIn).toBe(1);
-    expect(updated?.sourceOut).toBe(5);
+    expect(updated?.start).toBeCloseTo(0);
+    expect(updated?.end).toBeCloseTo(2);
+    expect(updated?.duration).toBeCloseTo(2);
+    expect(updated?.sourceIn).toBeCloseTo(2);
+    expect(updated?.sourceOut).toBeCloseTo(4);
+    expect(shifted?.start).toBeCloseTo(2);
+    expect(shifted?.end).toBeCloseTo(6);
   });
 
   it('moves clips between tracks when requested', () => {
@@ -152,6 +158,19 @@ describe('timelineStore', () => {
     expect(lockedClip?.start).toBe(0);
     expect(lockedClip?.end).toBe(6);
     expect(getState().clips).toHaveLength(1);
+  });
+
+  it('collapses gaps after removing clips on the same track', () => {
+    const clipA = { id: 'clip-a', start: 0, end: 4, duration: 4 };
+    const clipB = { id: 'clip-b', start: 4, end: 8, duration: 4 };
+    getState().addClip(clipA);
+    getState().addClip(clipB);
+
+    getState().removeClip('clip-a');
+
+    const remaining = getState().clips.find((c) => c.id === 'clip-b');
+    expect(remaining?.start).toBeCloseTo(0);
+    expect(remaining?.end).toBeCloseTo(4);
   });
 
   it('normalizes clip volume and keeps waveform metadata', () => {
