@@ -183,7 +183,6 @@ describe('timelineStore', () => {
     expect(stored?.waveform).toEqual(waveform);
   });
 
-<<<<<<< HEAD
   it('ripples subsequent clips when a clip is removed', () => {
     const first = { id: 'clip-one', start: 0, end: 2, duration: 2 };
     const second = { id: 'clip-two', start: 2, end: 5, duration: 3 };
@@ -226,7 +225,7 @@ describe('timelineStore', () => {
     expect(pushed?.start).toBe(3);
     expect(pushed?.end).toBe(5);
   });
-  
+
   it('supports overlay clips with text metadata on overlay tracks', () => {
     const overlayTrack = DEFAULT_TRACKS.find((track) => track.type === 'overlay');
     expect(overlayTrack).toBeTruthy();

@@ -12,6 +12,7 @@ import { PerfOverlay } from '@/components/ui/PerfOverlay';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { usePerfStore } from '@/store/perfStore';
 import { persistenceService } from '@/services/persistenceService';
+import { waveformQueue } from '@/services/waveformQueue';
 
 export default function App() {
 
@@ -34,6 +35,7 @@ export default function App() {
       setTimeout(() => {
         persistenceService.maybeOfferRecovery().catch(() => {});
       }, 0);
+      waveformQueue.bootstrap();
     } catch (e) {
       console.warn('Persistence init failed', e);
     }

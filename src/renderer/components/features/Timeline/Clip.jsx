@@ -1,10 +1,11 @@
 import React, { useState, useRef, useMemo, useCallback } from 'react';
-import { Move, Type } from 'lucide-react';
+import { Move } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTimelineStore } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
 import { OverlayTransformDialog } from './OverlayTransformDialog';
 import { Slider } from '@/components/ui/Slider';
+import { useWaveformStore } from '@/store/waveformStore';
 
 const SNAP_THRESHOLD = 0.5; // seconds
 
@@ -155,6 +156,24 @@ export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay 
       waveform: sourceWaveform,
     };
   }, [clip.waveform, mediaFile?.waveform]);
+
+  const waveformStatus = useWaveformStore((state) => state.items[clip.mediaFileId] || null);
+  const waveformPlaceholder = useMemo(() => {
+    if (!waveformStatus) {
+      return 'Waveform pending…';
+    }
+    switch (waveformStatus.state) {
+      case 'processing':
+      case 'pending':
+        return 'Generating waveform…';
+      case 'error':
+        return 'Waveform unavailable';
+      case 'ready':
+        return 'Waveform pending…';
+      default:
+        return 'Waveform pending…';
+    }
+  }, [waveformStatus]);
   
   // Calculate position and width based on visible duration (affected by zoom)
   const MAX_DURATION = visibleDuration || 120;
@@ -475,7 +494,7 @@ export function Clip({ clip, zoom, visibleDuration, onSelect, onEditTextOverlay 
               </svg>
             ) : (
               <div className="w-full text-[10px] uppercase tracking-wide text-zinc-500 text-center">
-                Waveform pending…
+                {waveformPlaceholder}
               </div>
             )}
           </div>

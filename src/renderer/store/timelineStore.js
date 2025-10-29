@@ -499,6 +499,13 @@ export const useTimelineStore = create((set, get) => ({
 
   setIsScrubbing: (isScrubbing) => set({ isScrubbing }),
 
+  setMediaWaveform: (mediaId, waveform) =>
+    set((state) => ({
+      clips: state.clips.map((clip) =>
+        clip.mediaFileId === mediaId ? { ...clip, waveform } : clip
+      ),
+    })),
+
   // Trim clip
   trimClip: (clipId, start, end) =>
     set((state) => {

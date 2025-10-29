@@ -68,17 +68,54 @@ function downsamplePeaks(audioBuffer, sampleCount = DEFAULT_SAMPLE_COUNT) {
   };
 }
 
-export async function computeWaveformPeaks(file, options = {}) {
-  if (!file || typeof file.arrayBuffer !== 'function') {
-    throw new Error('Invalid file input for waveform computation');
+const toArrayBuffer = async (input) => {
+  if (!input) {
+    throw new Error('Missing waveform input');
   }
 
+  if (input.arrayBuffer && typeof input.arrayBuffer === 'function') {
+    return await input.arrayBuffer();
+  }
+
+  if (input instanceof ArrayBuffer) {
+    return input.slice(0);
+  }
+
+  if (ArrayBuffer.isView(input)) {
+    return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
+  }
+
+  if (input.buffer) {
+    const view = input.buffer;
+    if (view instanceof ArrayBuffer) {
+      return view.slice(0);
+    }
+    if (ArrayBuffer.isView(view)) {
+      return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+    }
+  }
+
+  throw new Error('Unsupported waveform input type');
+};
+
+const getInputSizeBytes = (input) => {
+  if (!input) return null;
+  if (Number.isFinite(input.byteLength)) return Number(input.byteLength);
+  if (Number.isFinite(input.size)) return Number(input.size);
+  if (ArrayBuffer.isView(input)) return input.byteLength;
+  if (ArrayBuffer.isView(input?.buffer)) return input.buffer.byteLength;
+  if (Number.isFinite(input?.buffer?.byteLength)) return Number(input.buffer.byteLength);
+  return null;
+};
+
+export async function computeWaveformPeaks(input, options = {}) {
   const maxFileSizeBytes = options.maxFileSizeBytes ?? 50 * 1024 * 1024; // 50MB default
-  if (file.size > maxFileSizeBytes) {
+  const sizeBytes = getInputSizeBytes(input);
+  if (Number.isFinite(sizeBytes) && sizeBytes > maxFileSizeBytes) {
     throw new Error('File too large for waveform extraction');
   }
 
-  const arrayBuffer = await file.arrayBuffer();
+  const arrayBuffer = await toArrayBuffer(input);
   const audioContext = await getAudioContext();
   const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
 

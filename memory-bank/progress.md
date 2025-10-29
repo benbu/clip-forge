@@ -2,9 +2,9 @@
 
 ## Current Status: 🟢 Post-MVP — Epic 4 (Export & Delivery) In Progress
 
-**Overall Progress**: ~90% Complete
+**Overall Progress**: ~92% Complete
 **Epic 4**: Export queue, presets, summary, validation shipped; cross-platform QA + automation pending
-**Epic 3**: Audio waveform visualization and timeline navigation upgrades queued next
+**Epic 3**: Waveform extraction/visualization delivered; focusing next on zoom/minimap + navigation polish
 
 ## What Works
 
@@ -21,9 +21,9 @@
 ## What's in Progress
 
 ### Currently Building
-- Timeline audio waveform rendering + per-clip gain controls
-- Timeline zoom/minimap UX polish
-- Cross-platform regression pass on new export queue flow
+- Timeline zoom/minimap UX polish and keyboard shortcuts
+- Cross-platform regression pass (export queue + waveform hydration)
+- Playwright automation plan for export regression
 
 ## What's Left to Build
 
@@ -57,6 +57,7 @@
 - [x] Screen recording (service layer)
 - [x] Export to MP4 (service layer)
 - [x] Export queue with presets, summary review, telemetry, validation (Epic 4)
+- [x] Waveform extraction queue + timeline visualization with gain controls (Epic 3)
 
 ### Nice-to-Have Features (Stretch)
 - [ ] Keyboard shortcuts
@@ -70,12 +71,14 @@
 ## Known Issues
 
 - Cross-platform QA for new export queue pending (verify reveal-in-folder + shell bridges on Windows/Linux)
+- Waveform queue needs additional persistence for very large assets (>50MB) and Windows path edge cases
 - Video playback of real files is pending integration
 
 ## Technical Debt
 
 - Need a typed IPC map and runtime validation wrappers
 - Export job metadata lacks persistent storage; consider persisting queue history for diagnostics
+- No persistent cache for waveform peaks (regenerated each session)
 
 ## Performance Metrics
 
@@ -90,13 +93,13 @@
 
 ### Test Coverage
 - **Unit Tests**: limited (core stores only) — expansion required
-- **Integration Tests**: export queue automation pending (Playwright planned)
-- **E2E Tests**: smoke plan drafted, blocked on waveform work
+- **Integration Tests**: export queue + waveform automation pending (Playwright planned)
+- **E2E Tests**: smoke plan drafted, blocked on waveform UI polish
 
 ### Test Platform Coverage
-- Windows: Manual sanity pending (queue/regression)
+- Windows: Manual sanity pending (queue + waveform hydration)
 - macOS: Primary dev platform (manual QA ongoing)
-- Linux: Pending queue regression sweep
+- Linux: Pending queue/waveform regression sweep
 
 ## Deployment Status
 

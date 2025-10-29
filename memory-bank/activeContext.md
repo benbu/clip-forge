@@ -2,14 +2,14 @@
 
 ## Current Focus
 
-**Phase**: Post-MVP Feature Completion — Export & Delivery (Epic 4)
-**Status**: Export queue + presets + validation shipped; preparing timeline waveform work
+**Phase**: Post-MVP Feature Completion — Timeline & Export polish (Epics 3 + 4)
+**Status**: Export queue + presets shipped; waveform extraction queue + timeline collapse refinements live
 
 Focus for next work session:
-1. Timeline audio waveforms and per-clip gain controls (Epic 3)
-2. Timeline zoom/minimap UX improvements
-3. Recording PiP & audio routing polish
-4. Cross-platform QA for new export pipeline
+1. Timeline zoom/minimap UX improvements + keyboard shortcuts
+2. Recording PiP placement + audio routing polish
+3. Cross-platform QA passes (export + waveform hydration)
+4. Prep automation for export regression (Playwright harness)
 
 ## Recent Changes
 
@@ -18,6 +18,7 @@ Focus for next work session:
 - Real-time export telemetry (stage, ETA, FFmpeg log streaming) wired through renderer queue store
 - Enhanced Export modal: social presets, bitrate/fps controls, summary review, metadata capture, diagnostics download
 - Post-export validation pipeline (probe + filesystem check) with Reveal-in-Finder shortcut via secure IPC
+- Waveform extraction queue (Electron file reads + Web Audio) with Zustand caching + timeline clip hydration/status badges
 - Media Library sortable columns and quick filters
 - Clip Detail Drawer with metadata, rename, and usage by track
 - Async thumbnail caching + background generation
@@ -37,11 +38,14 @@ Focus for next work session:
 - Modified: `src/renderer/services/exportService.js`
 - Modified: `src/renderer/components/features/Export/ExportModal.jsx`
 - Added: `src/renderer/store/exportQueueStore.js`
+- Added: `src/renderer/store/waveformStore.js`, `src/renderer/services/waveformQueue.js`
+- Modified: `src/renderer/services/mediaService.js`, `src/renderer/services/waveformService.js`
+- Modified: `src/renderer/components/features/Timeline/Clip.jsx`, `src/renderer/store/timelineStore.js`
 
 ## Current Work Session
 
 ### Today's Priority
-Finalize plan for timeline audio waveform rendering and schedule cross-platform QA pass for the new export queue.
+Stabilize waveform queue rollout; plan timeline zoom/minimap interaction design and QA matrix.
 
 ### Active Decisions
 1. Keep IPC surface minimal and validated; new channels (`fs:exists`, `dialog:openVideo`, `shell:revealItem`) exposed only through preload guards.
@@ -52,21 +56,20 @@ Finalize plan for timeline audio waveform rendering and schedule cross-platform 
 ## Next Steps (Immediate)
 
 ### Immediate (Next)
-1. Implement audio waveform peak generation + renderer visualization for timeline tracks.
-2. Improve timeline navigation (zoom, minimap, keyboard shortcuts).
-3. Execute cross-platform regression pass on the new export queue and summary UI.
+1. Improve timeline navigation (zoom wheel + minimap + keyboard shortcuts).
+2. Execute cross-platform regression pass on export + waveform queue (Windows/macOS/Linux).
+3. Kick off Playwright automation plan for export smoke coverage.
 
 ### This Week
 1. Ship recording PiP placement controls and audio routing presets.
-2. Harden export presets (QA presets & bitrate defaults) and document recommended workflows.
-3. Draft release notes + update user documentation with new export flow.
+2. Harden waveform cache persistence (consider storing peaks alongside media metadata) and document recovery steps.
+3. Draft release notes + update user documentation covering export + waveform flows.
 
 ### This Sprint (2 weeks)
-1. Complete waveform release (gain controls, waveform caching).
-2. Finalize recording enhancements (source picker refinements, audio meter polish).
-3. Profile timeline performance under heavy loads; validate virtualization approach.
-4. Automate export regression smoke via Playwright.
-5. Gather usability feedback on new export experience and iterate.
+1. Finalize recording enhancements (source picker refinements, audio meter polish).
+2. Profile timeline performance under heavy loads; validate virtualization approach.
+3. Automate export regression smoke via Playwright.
+4. Gather usability feedback on new export experience + waveform UI and iterate.
 
 ## Active Concerns & Questions
 

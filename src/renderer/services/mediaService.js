@@ -3,6 +3,7 @@
  */
 
 import { computeWaveformPeaks } from './waveformService';
+import { waveformQueue } from './waveformQueue';
 
 /**
  * Import media files and extract metadata
@@ -66,6 +67,12 @@ export async function importVideoFiles(files, options = {}) {
       }
       
       importedFiles.push(fileObj);
+
+      if (fileObj.waveform) {
+        waveformQueue.registerPrecomputed(fileObj.id, fileObj.waveform);
+      } else {
+        waveformQueue.ensure(fileObj, { file });
+      }
     } catch (error) {
       console.error(`Failed to import ${file.name}:`, error);
     }
