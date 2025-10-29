@@ -24,11 +24,11 @@ export function EditorSettings() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Snap to Grid</span>
-            <Switch checked={true} onChange={() => {}} />
+            <Switch size="sm" checked={true} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Show Grid Lines</span>
-            <Switch checked={false} onChange={() => {}} />
+            <Switch size="sm" checked={false} onChange={() => {}} />
           </div>
         </div>
       </div>
@@ -39,11 +39,11 @@ export function EditorSettings() {
         <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Auto-play on Import</span>
-            <Switch checked={false} onChange={() => {}} />
+            <Switch size="sm" checked={false} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Loop Playback</span>
-            <Switch checked={false} onChange={() => {}} />
+            <Switch size="sm" checked={false} onChange={() => {}} />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Control Auto-hide Delay: {autohideDelay}s</label>
@@ -58,11 +58,11 @@ export function EditorSettings() {
         <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Hardware Acceleration</span>
-            <Switch checked={true} onChange={() => {}} />
+            <Switch size="sm" checked={true} onChange={() => {}} />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-1 block">Thumbnail Quality</label>
-            <select className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm">
+            <select className="w-full bg-zinc-800 border border-white/10 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
               <option>Low</option>
               <option>Medium</option>
               <option>High</option>

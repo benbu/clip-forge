@@ -1,7 +1,31 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-export function Switch({ checked, onChange, disabled = false, className, ...props }) {
+const SIZE_CONFIG = {
+  sm: {
+    wrapper: 'h-5 w-9',
+    thumb: 'h-3.5 w-3.5',
+    translateOn: 'translate-x-5',
+    translateOff: 'translate-x-1',
+  },
+  md: {
+    wrapper: 'h-6 w-11',
+    thumb: 'h-4 w-4',
+    translateOn: 'translate-x-6',
+    translateOff: 'translate-x-1',
+  },
+};
+
+export function Switch({
+  checked,
+  onChange,
+  disabled = false,
+  className,
+  size = 'md',
+  ...props
+}) {
+  const config = SIZE_CONFIG[size] ?? SIZE_CONFIG.md;
+
   return (
     <button
       type="button"
@@ -10,7 +34,8 @@ export function Switch({ checked, onChange, disabled = false, className, ...prop
       onClick={() => onChange(!checked)}
       disabled={disabled}
       className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+        'relative inline-flex items-center rounded-full transition-colors',
+        config.wrapper,
         checked ? 'bg-indigo-600' : 'bg-zinc-700',
         disabled && 'opacity-50 cursor-not-allowed',
         !disabled && 'cursor-pointer',
@@ -20,8 +45,9 @@ export function Switch({ checked, onChange, disabled = false, className, ...prop
     >
       <span
         className={cn(
-          'inline-block h-4 w-4 rounded-full bg-white transition-transform',
-          checked ? 'translate-x-6' : 'translate-x-1'
+          'inline-block rounded-full bg-white transition-transform',
+          config.thumb,
+          checked ? config.translateOn : config.translateOff
         )}
       />
     </button>

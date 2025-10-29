@@ -1,11 +1,15 @@
 import React from 'react';
 import { Switch } from '../../ui/Switch';
-import { Download, Zap, Settings } from 'lucide-react';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export function ExportSettings() {
   const settings = useSettingsStore((s) => s.export);
   const setExportSetting = useSettingsStore((s) => s.setExportSetting);
+
+  const selectClassName =
+    'w-full rounded-md border border-white/10 bg-zinc-900/70 px-2.5 py-1.5 text-[12px] text-zinc-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
+  const labelClassName = 'text-[11px] font-medium uppercase tracking-wide text-zinc-400 mb-1 block';
+  const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-zinc-300 mb-2';
 
   const handleResolutionChange = (e) => {
     const value = e.target.value;
@@ -26,12 +30,12 @@ export function ExportSettings() {
     <div className="space-y-4">
       {/* Export Quality */}
       <div>
-        <h4 className="text-xs font-medium text-zinc-300 mb-2">Default Quality</h4>
-        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
+        <h4 className={sectionTitleClass}>Default Quality</h4>
+        <div className="space-y-3 bg-zinc-900/60 rounded-lg p-3">
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Resolution</label>
+            <label className={labelClassName}>Resolution</label>
             <select
-              className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm"
+              className={selectClassName}
               value={settings.resolution || 'source'}
               onChange={handleResolutionChange}
             >
@@ -42,9 +46,9 @@ export function ExportSettings() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Frame Rate</label>
+            <label className={labelClassName}>Frame Rate</label>
             <select
-              className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm"
+              className={selectClassName}
               value={settings.fps == null ? 'source' : String(settings.fps)}
               onChange={handleFpsChange}
             >
@@ -55,9 +59,9 @@ export function ExportSettings() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Output Format</label>
+            <label className={labelClassName}>Output Format</label>
             <select
-              className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm"
+              className={selectClassName}
               value={settings.format}
               onChange={handleFormatChange}
             >
@@ -72,19 +76,19 @@ export function ExportSettings() {
 
       {/* Advanced Export */}
       <div>
-        <h4 className="text-xs font-medium text-zinc-300 mb-2">Advanced</h4>
-        <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-300">Two-Pass Encoding</span>
-            <Switch checked={false} onChange={() => {}} />
+        <h4 className={sectionTitleClass}>Advanced</h4>
+        <div className="space-y-3 bg-zinc-900/60 rounded-lg p-3">
+          <div className="flex items-center justify-between text-[11px] text-zinc-300">
+            <span>Two-Pass Encoding</span>
+            <Switch size="sm" checked={false} onChange={() => {}} />
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-300">Hardware Acceleration</span>
-            <Switch checked={true} onChange={() => {}} />
+          <div className="flex items-center justify-between text-[11px] text-zinc-300">
+            <span>Hardware Acceleration</span>
+            <Switch size="sm" checked={true} onChange={() => {}} />
           </div>
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Encoding Preset</label>
-            <select className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm">
+            <label className={labelClassName}>Encoding Preset</label>
+            <select className={selectClassName}>
               <option>Fast</option>
               <option>Balanced</option>
               <option>High Quality</option>

@@ -21,7 +21,7 @@ export function AdvancedSettings() {
         <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Enable Auto-save</span>
-            <Switch checked={autosaveEnabled} onChange={setAutosaveEnabled} />
+            <Switch size="sm" checked={autosaveEnabled} onChange={setAutosaveEnabled} />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-2 block">Auto-save Interval: {autosaveMinutes} minutes</label>
@@ -63,11 +63,11 @@ export function AdvancedSettings() {
         <div className="space-y-2 bg-zinc-900/50 rounded-lg p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-300">Auto-update</span>
-            <Switch checked={true} onChange={() => {}} />
+            <Switch size="sm" checked={true} onChange={() => {}} />
           </div>
           <div>
             <label className="text-xs text-zinc-400 mb-1 block">Update Channel</label>
-            <select className="w-full bg-zinc-800 border border-white/10 rounded px-3 py-2 text-sm">
+            <select className="w-full bg-zinc-800 border border-white/10 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
               <option>Stable</option>
               <option>Beta</option>
             </select>
