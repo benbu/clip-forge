@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+const EPSILON = 0.0001;
+
 const withDefaultTrackState = (track, index = 0) => ({
   id: track.id ?? `${track.type ?? 'video'}-${Date.now()}`,
   type: track.type ?? 'video',
@@ -13,51 +15,60 @@ const withDefaultTrackState = (track, index = 0) => ({
   height: track.height ?? 1,
 });
 
-const resolveClipEnd = (clip) => {
-  if (clip?.end != null) return clip.end;
-  const duration = clip?.duration ?? 0;
-  return (clip?.start ?? 0) + duration;
-};
-
-const rippleShiftClips = (clips, trackId, pivotTime, delta) => {
-  if (!trackId || !delta) return clips;
-  const shift = Number(delta);
-  if (!Number.isFinite(shift) || shift === 0) return clips;
-
-  return clips.map((clip) => {
-    if (clip.trackId !== trackId) {
-      return clip;
-    }
-    if ((clip.start ?? 0) < pivotTime) {
-      return clip;
-    }
-
-    const nextStart = Math.max(0, (clip.start ?? 0) - shift);
-    let nextEnd = clip.end != null ? clip.end - shift : clip.end;
-    if (nextEnd != null && nextEnd < nextStart) {
-      nextEnd = nextStart;
-    }
-
-    const nextDuration =
-      clip.duration != null
-        ? Math.max(0, nextEnd != null ? nextEnd - nextStart : clip.duration)
-        : clip.duration;
-
-    return {
-      ...clip,
-      start: nextStart,
-      end: nextEnd != null ? nextEnd : undefined,
-      duration: nextDuration,
-    };
-  });
-};
-
 export const DEFAULT_TRACKS = [
   withDefaultTrackState({ id: 'video-1', type: 'video', name: 'Video Track 1', order: 0 }, 0),
   withDefaultTrackState({ id: 'overlay-1', type: 'overlay', name: 'Overlay Track', order: 1 }, 1),
   withDefaultTrackState({ id: 'video-2', type: 'video', name: 'Video Track 2', order: 2 }, 2),
   withDefaultTrackState({ id: 'audio-1', type: 'audio', name: 'Audio Track 1', order: 3 }, 3),
 ];
+
+const cloneClip = (clip) => ({ ...clip });
+
+const normalizeClipTiming = (clip) => {
+  const start = Number.isFinite(clip.start) ? clip.start : 0;
+  const end = Number.isFinite(clip.end)
+    ? clip.end
+    : start + (Number.isFinite(clip.duration) ? clip.duration : 0);
+  const duration = Math.max(0, Number.isFinite(clip.duration) ? clip.duration : end - start);
+  return { start, end, duration };
+};
+
+const collapseClipsForTrack = (clips, trackId, fromTime = 0) => {
+  const working = clips.map(cloneClip);
+  const trackClips = working
+    .filter((clip) => clip.trackId === trackId)
+    .sort((a, b) => normalizeClipTiming(a).start - normalizeClipTiming(b).start);
+
+  if (!trackClips.length) {
+    return working;
+  }
+
+  let cursor = Math.max(0, fromTime);
+
+  for (const clip of trackClips) {
+    const { start, end, duration } = normalizeClipTiming(clip);
+
+    if (end <= Math.max(cursor, fromTime) + EPSILON) {
+      cursor = Math.max(cursor, end);
+      continue;
+    }
+
+    const nextStart = cursor;
+    const nextEnd = nextStart + duration;
+
+    clip.start = Number.parseFloat(nextStart.toFixed(4));
+    clip.end = Number.parseFloat(nextEnd.toFixed(4));
+    clip.duration = duration;
+
+    if (Number.isFinite(clip.endTrim)) {
+      clip.endTrim = Math.min(clip.duration, Math.max(0, clip.endTrim));
+    }
+
+    cursor = nextEnd;
+  }
+
+  return working;
+};
 
 /**
  * Timeline Store - Manages timeline clips, playhead position, and zoom
@@ -221,9 +232,12 @@ export const useTimelineStore = create((set, get) => ({
     set((state) => {
       const mediaTypeHint =
         typeof clip.mediaType === 'string' ? clip.mediaType.toLowerCase() : '';
-      const normalizedMediaType = mediaTypeHint.includes('audio')
-        ? 'audio'
-        : 'video';
+      let normalizedMediaType = 'video';
+      if (mediaTypeHint.includes('audio')) {
+        normalizedMediaType = 'audio';
+      } else if (mediaTypeHint.includes('overlay') || mediaTypeHint.includes('text')) {
+        normalizedMediaType = 'overlay';
+      }
 
       const getDefaultTrackId = (type = 'video') => {
         const tracks = get().tracks;
@@ -246,6 +260,9 @@ export const useTimelineStore = create((set, get) => ({
 
         if (normalizedMediaType === 'audio') {
           return getDefaultTrackId('audio');
+        }
+        if (normalizedMediaType === 'overlay') {
+          return getDefaultTrackId('overlay');
         }
         return getDefaultTrackId('video');
       };
@@ -351,6 +368,31 @@ export const useTimelineStore = create((set, get) => ({
         if (updates.recordingMeta) {
           next.recordingMeta = updates.recordingMeta;
         }
+        if (Object.prototype.hasOwnProperty.call(updates, 'overlayKind')) {
+          next.overlayKind = updates.overlayKind;
+        }
+        if (updates.textOverlay) {
+          const prevOverlay = clip.textOverlay ?? {};
+          const prevStyle = prevOverlay.style ?? {};
+          const incoming = updates.textOverlay ?? {};
+          const incomingStyle = incoming.style ?? {};
+          next.textOverlay = {
+            ...prevOverlay,
+            ...incoming,
+            style: Object.keys(incomingStyle).length
+              ? {
+                  ...prevStyle,
+                  ...incomingStyle,
+                }
+              : prevStyle,
+          };
+        }
+        if (updates.textOverlay === null) {
+          next.textOverlay = null;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'textOverlayKeyframes')) {
+          next.textOverlayKeyframes = updates.textOverlayKeyframes;
+        }
         return next;
       };
 
@@ -396,16 +438,15 @@ export const useTimelineStore = create((set, get) => ({
         return state;
       }
 
-      const clipEnd = resolveClipEnd(targetClip);
-      const clipDuration = Math.max(0, clipEnd - (targetClip.start ?? 0));
       const remaining = state.clips.filter((c) => c.id !== clipId);
-      const adjusted =
-        clipDuration > 0
-          ? rippleShiftClips(remaining, targetClip.trackId, clipEnd, clipDuration)
-          : remaining;
       const nextSelected =
         state.selectedClipId === clipId ? null : state.selectedClipId;
-      return { clips: adjusted, selectedClipId: nextSelected };
+      const collapsed = collapseClipsForTrack(
+        remaining,
+        targetClip.trackId,
+        Number.isFinite(targetClip.start) ? targetClip.start : 0
+      );
+      return { clips: collapsed, selectedClipId: nextSelected };
     }),
 
   reorderClips: (clipId, newPosition, trackId) =>
@@ -461,46 +502,47 @@ export const useTimelineStore = create((set, get) => ({
   // Trim clip
   trimClip: (clipId, start, end) =>
     set((state) => {
-      let rippleDelta = 0;
-      let pivotTime = 0;
-      let targetTrackId = null;
+      const targetClip = state.clips.find((clip) => clip.id === clipId);
+      if (!targetClip) {
+        return state;
+      }
+
+      const track = state.tracks.find((t) => t.id === targetClip.trackId);
+      if (track?.isLocked) {
+        return state;
+      }
+
+      const prevStart = targetClip.start ?? 0;
+      const fromTime = Math.min(prevStart, Number.isFinite(start) ? start : prevStart);
 
       const nextClips = state.clips.map((clip) => {
         if (clip.id !== clipId) return clip;
 
-        const track = state.tracks.find((t) => t.id === clip.trackId);
-        if (track?.isLocked) {
-          return clip;
-        }
-
         const prevSourceIn = clip.sourceIn ?? 0;
-        const prevStart = clip.start ?? 0;
-        const prevEnd = resolveClipEnd(clip);
-        const clampedStart = Math.max(0, start);
-        const clampedEnd = Math.max(clampedStart, end);
-        const duration = Math.max(0, clampedEnd - clampedStart);
-        const newSourceIn = Math.max(0, prevSourceIn + (clampedStart - prevStart));
+        const newStart = Math.max(0, start);
+        const newEnd = Math.max(newStart, end);
+        const duration = Math.max(0, newEnd - newStart);
+        const deltaLeft = Math.max(0, newStart - prevStart);
+        const newSourceIn = Math.max(0, prevSourceIn + deltaLeft);
         const newSourceOut = newSourceIn + duration;
-
-        rippleDelta = prevEnd - clampedEnd;
-        pivotTime = prevEnd;
-        targetTrackId = clip.trackId;
 
         return {
           ...clip,
-          start: clampedStart,
-          end: clampedEnd,
+          start: Number.parseFloat(newStart.toFixed(4)),
+          end: Number.parseFloat(newEnd.toFixed(4)),
           duration,
           sourceIn: newSourceIn,
           sourceOut: newSourceOut,
         };
       });
 
-      const adjustedClips = rippleDelta
-        ? rippleShiftClips(nextClips, targetTrackId, pivotTime, rippleDelta)
-        : nextClips;
+      const collapsed = collapseClipsForTrack(
+        nextClips,
+        targetClip.trackId,
+        Number.isFinite(fromTime) ? fromTime : 0
+      );
 
-      return { clips: adjustedClips };
+      return { clips: collapsed };
     }),
 
   // Split clip at current playhead

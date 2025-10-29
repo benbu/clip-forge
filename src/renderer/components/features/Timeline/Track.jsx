@@ -13,6 +13,7 @@ export function Track({
   zoom,
   visibleDuration,
   onSelectClip,
+  onEditTextOverlay = () => {},
   onDragOverTrack,
   onDragLeaveTrack,
   onDropClip,
@@ -231,6 +232,7 @@ export function Track({
               zoom={zoom}
               visibleDuration={visibleDuration}
               onSelect={onSelectClip}
+              onEditTextOverlay={onEditTextOverlay}
             />
           ))}
         </div>

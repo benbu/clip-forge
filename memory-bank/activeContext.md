@@ -27,6 +27,8 @@ Focus for next work session:
  - Disk space guard before export
  - Autosave with versioned backups and crash recovery prompt
  - Diagnostics export (env/perf/state/settings)
+- Rich text overlay creation/editing with animated keyframes and timeline playback rendering
+- Ripple editing and automatic gap collapse for clip trims/removals on unlocked tracks
 
 ### Git Status
 - Modified: `docs/clipforge_remaining_features_tasklist.md`

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Scissors, Grid } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { ZoomIn, ZoomOut, Scissors, Grid, Type } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Track } from './Track';
@@ -8,6 +8,8 @@ import { TimeRuler } from './TimeRuler';
 import { useTimelineStore } from '@/store/timelineStore';
 import { usePlayerStore } from '@/store/playerStore';
 import { useMediaStore } from '@/store/mediaStore';
+import { TextOverlayDialog } from './TextOverlayDialog';
+import { createDefaultTextOverlay, sanitizeTextOverlay } from '@/lib/textOverlay';
 
 export function Timeline() {
   const { 
@@ -19,6 +21,7 @@ export function Timeline() {
     toggleSnapToGrid,
     splitClipAtPlayhead,
     addClip,
+    updateClip,
     selectedClipId,
     removeClip,
     tracks,
@@ -31,6 +34,20 @@ export function Timeline() {
   const timelineRef = useRef(null);
   const setPlaybackSource = usePlayerStore((s) => s.setPlaybackSource);
   const clearSelection = useMediaStore((s) => s.clearSelection);
+  const [isTextOverlayDialogOpen, setIsTextOverlayDialogOpen] = useState(false);
+  const [editingTextOverlayClipId, setEditingTextOverlayClipId] = useState(null);
+  const [textOverlayDraft, setTextOverlayDraft] = useState(() => createDefaultTextOverlay());
+
+  const overlayTracks = useMemo(
+    () => tracks.filter((track) => track.type === 'overlay'),
+    [tracks]
+  );
+  const unlockedOverlayTrack = useMemo(
+    () => overlayTracks.find((track) => !track.isLocked) ?? null,
+    [overlayTracks]
+  );
+  const fallbackOverlayTrack = overlayTracks[0] ?? null;
+  const canCreateTextOverlay = Boolean(unlockedOverlayTrack);
 
   const focusTimeline = useCallback(() => {
     timelineRef.current?.focus();
@@ -40,6 +57,85 @@ export function Timeline() {
     setPlaybackSource('timeline');
     clearSelection();
   }, [setPlaybackSource, clearSelection]);
+
+  const handleCloseTextOverlayDialog = useCallback(() => {
+    setIsTextOverlayDialogOpen(false);
+    setEditingTextOverlayClipId(null);
+    setTextOverlayDraft(createDefaultTextOverlay());
+  }, []);
+
+  const handleOpenNewTextOverlay = useCallback(() => {
+    if (!canCreateTextOverlay) {
+      console.warn('No unlocked overlay track available for text overlays.');
+      return;
+    }
+    setTextOverlayDraft(createDefaultTextOverlay());
+    setEditingTextOverlayClipId(null);
+    setIsTextOverlayDialogOpen(true);
+  }, [canCreateTextOverlay]);
+
+  const handleEditTextOverlay = useCallback((clip) => {
+    if (!clip) return;
+    setTextOverlayDraft(sanitizeTextOverlay(clip.textOverlay ?? {}));
+    setEditingTextOverlayClipId(clip.id);
+    setIsTextOverlayDialogOpen(true);
+  }, []);
+
+  const handleSubmitTextOverlay = useCallback(
+    (overlayValue) => {
+      if (!overlayValue) return;
+      const normalized = sanitizeTextOverlay(overlayValue);
+
+      if (editingTextOverlayClipId) {
+        const textSummary = normalized.text?.trim()?.split('\n')[0] ?? '';
+        updateClip(editingTextOverlayClipId, {
+          textOverlay: normalized,
+          textOverlayKeyframes: normalized.keyframes,
+          name: textSummary.length ? textSummary.slice(0, 48) : undefined,
+        });
+        return;
+      }
+
+      const targetTrack = unlockedOverlayTrack ?? fallbackOverlayTrack;
+      if (!targetTrack || targetTrack.isLocked) {
+        console.warn('Unable to create text overlay: all overlay tracks are locked.');
+        return;
+      }
+
+      const baseDuration = 4;
+      const safeStart = Math.max(0, playheadPosition);
+      const safeDuration = Math.max(1, baseDuration);
+      const safeEnd = safeStart + safeDuration;
+      const textSummary = normalized.text?.trim()?.split('\n')[0] ?? 'Text Overlay';
+
+      addClip({
+        id: `text-overlay-${Date.now()}`,
+        name: textSummary.slice(0, 48) || 'Text Overlay',
+        start: safeStart,
+        end: safeEnd,
+        duration: safeDuration,
+        startTrim: 0,
+        endTrim: safeDuration,
+        trackId: targetTrack.id,
+        mediaType: 'overlay',
+        overlayKind: 'text',
+        textOverlay: normalized,
+        textOverlayKeyframes: normalized.keyframes,
+        color: '#f97316',
+        createdAt: new Date().toISOString(),
+      });
+      focusTimeline();
+    },
+    [
+      addClip,
+      editingTextOverlayClipId,
+      fallbackOverlayTrack,
+      focusTimeline,
+      playheadPosition,
+      unlockedOverlayTrack,
+      updateClip,
+    ]
+  );
   
   const handleZoomInputChange = (value) => {
     setZoomInput(value);
@@ -305,6 +401,15 @@ export function Timeline() {
             onClick={handleSplitClick}
             disabled={clips.length === 0}
           />
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Type className="h-3.5 w-3.5" />}
+            onClick={handleOpenNewTextOverlay}
+            disabled={!canCreateTextOverlay}
+          >
+            Add Text
+          </Button>
         </div>
       </div>
       
@@ -334,6 +439,7 @@ export function Timeline() {
                       zoom={zoom}
                       visibleDuration={visibleDuration}
                       onSelectClip={focusTimeline}
+                      onEditTextOverlay={handleEditTextOverlay}
                       onDragOverTrack={(event) => {
                         event.preventDefault();
                         setHoveredTrackId(track.id);
@@ -354,6 +460,14 @@ export function Timeline() {
           );
         })()}
       </div>
+
+      <TextOverlayDialog
+        isOpen={isTextOverlayDialogOpen}
+        initialValue={textOverlayDraft}
+        onSubmit={handleSubmitTextOverlay}
+        onClose={handleCloseTextOverlayDialog}
+        submitLabel={editingTextOverlayClipId ? 'Update Overlay' : 'Create Overlay'}
+      />
     </div>
   );
 }

@@ -63,7 +63,7 @@
 - [ ] Undo/Redo
 - [ ] Project save/load
 - [ ] Audio controls (volume, fade)
-- [ ] Text overlays
+- [x] Text overlays
 - [ ] Transition effects
 - [ ] Auto-save
 

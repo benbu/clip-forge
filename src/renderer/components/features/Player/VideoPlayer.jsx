@@ -1,15 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { cn } from '@/lib/utils';
 import { usePlayerStore } from '@/store/playerStore';
 import { useTimelineStore } from '@/store/timelineStore';
 import { useMediaStore } from '@/store/mediaStore';
 import { formatDuration } from '@/lib/fileUtils';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { shortcuts } from '@/lib/keyboardShortcuts';
+import { sanitizeTextOverlay, interpolateTextOverlay } from '@/lib/textOverlay';
 
 export function VideoPlayer() {
   const videoRef = useRef(null);
@@ -25,6 +25,7 @@ export function VideoPlayer() {
   const setPlayheadPosition = useTimelineStore((state) => state.setPlayheadPosition);
   const isScrubbing = useTimelineStore((state) => state.isScrubbing);
   const clips = useTimelineStore((state) => state.clips);
+  const tracks = useTimelineStore((state) => state.tracks);
   const { 
     isPlaying, 
     currentTime, 
@@ -196,6 +197,52 @@ export function VideoPlayer() {
     };
   }, [seek, setPlayheadPosition, setDuration, playbackSource]);
   
+  const activeTextOverlays = useMemo(() => {
+    if (playbackSource !== 'timeline') return [];
+    if (!Array.isArray(clips) || clips.length === 0) return [];
+
+    const overlays = [];
+    for (const clip of clips) {
+      if (clip.mediaType !== 'overlay' || !(clip.overlayKind === 'text' || clip.textOverlay)) {
+        continue;
+      }
+
+      const track = tracks?.find((t) => t.id === clip.trackId);
+      if (track && track.isVisible === false) {
+        continue;
+      }
+
+      const start = Number.isFinite(clip.start) ? clip.start : 0;
+      const end = Number.isFinite(clip.end)
+        ? clip.end
+        : start + (Number.isFinite(clip.duration) ? clip.duration : 0);
+      const durationSeconds = Math.max(
+        0.1,
+        Number.isFinite(clip.duration) ? clip.duration : Math.max(0, end - start)
+      );
+
+      if (playheadPosition < start || playheadPosition > start + durationSeconds) {
+        continue;
+      }
+
+      const overlayData = sanitizeTextOverlay(clip.textOverlay ?? {});
+      const progressRatio = (playheadPosition - start) / durationSeconds;
+      const animatedState = interpolateTextOverlay(overlayData, progressRatio);
+
+      overlays.push({
+        clipId: clip.id,
+        overlay: overlayData,
+        state: animatedState,
+        order: track?.order ?? 0,
+      });
+    }
+
+    overlays.sort((a, b) => a.order - b.order);
+    return overlays;
+  }, [clips, playbackSource, playheadPosition, tracks]);
+
+  const showTextOverlays = playbackSource === 'timeline' && activeTextOverlays.length > 0;
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   
   const handleSeek = (value) => {
@@ -247,6 +294,60 @@ export function VideoPlayer() {
       >
         Your browser does not support the video tag.
       </video>
+
+      {showTextOverlays && (
+        <div className="absolute inset-0 pointer-events-none">
+          {activeTextOverlays.map(({ clipId, overlay, state }) => {
+            const xPercent = overlay.position?.xPercent ?? 0.5;
+            const yPercent = overlay.position?.yPercent ?? 0.75;
+            const overlayStyle = overlay.style ?? {};
+            const overlayText = (overlay.text ?? '').trim() || 'Text Overlay';
+            const textStyle = {
+              fontFamily: overlayStyle.fontFamily,
+              fontWeight: overlayStyle.fontWeight,
+              fontSize: `${overlayStyle.fontSize ?? 48}px`,
+              color: overlayStyle.color ?? '#ffffff',
+              backgroundColor: overlayStyle.backgroundColor ?? 'rgba(0, 0, 0, 0.45)',
+              textAlign: overlayStyle.textAlign ?? 'center',
+              letterSpacing: `${overlayStyle.letterSpacing ?? 0}px`,
+              lineHeight: overlayStyle.lineHeight ?? 1.1,
+              textTransform: overlayStyle.uppercase ? 'uppercase' : 'none',
+              fontStyle: overlayStyle.italic ? 'italic' : 'normal',
+              padding: `${overlayStyle.paddingY ?? 18}px ${overlayStyle.paddingX ?? 32}px`,
+              borderRadius: `${overlayStyle.borderRadius ?? 12}px`,
+              boxShadow: overlayStyle.shadow
+                ? `${overlayStyle.shadow.offsetX ?? 0}px ${overlayStyle.shadow.offsetY ?? 2}px ${overlayStyle.shadow.blur ?? 24}px ${overlayStyle.shadow.color ?? 'rgba(0, 0, 0, 0.55)'}`
+                : 'none',
+              maxWidth: '80%',
+              margin: '0 auto',
+              pointerEvents: 'none',
+              whiteSpace: 'pre-wrap',
+            };
+
+            return (
+              <div
+                key={clipId}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${xPercent * 100}%`,
+                  top: `${yPercent * 100}%`,
+                }}
+              >
+                <div
+                  className="pointer-events-none"
+                  style={{
+                    opacity: state.opacity ?? 1,
+                    transform: `translate(-50%, -50%) translateY(${state.translateY ?? 0}px) scale(${state.scale ?? 1})`,
+                    transition: 'opacity 0.12s linear, transform 0.12s ease-out',
+                  }}
+                >
+                  <div style={textStyle}>{overlayText}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
       
       {/* Placeholder */}
       {!selectedFile && (
