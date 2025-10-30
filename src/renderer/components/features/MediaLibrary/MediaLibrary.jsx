@@ -302,19 +302,39 @@ export function MediaLibrary() {
             <p className="text-xs mt-1">Drag files here or click import</p>
           </div>
         ) : (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-2' : 'space-y-2'}>
-            {sortedFiles.map(file => (
-              <FileCard
-                key={file.id}
-                file={file}
-                isSelected={selectedFile === file.id}
-                onSelect={() => handleSelectFile(file.id)}
-                onDelete={() => handleDeleteFile(file.id)}
-                onRelink={() => relinkFile(file.id)}
-                bulkSelected={bulkSelectedIds.includes(file.id)}
-                onBulkToggle={() => bulkToggle(file.id)}
-              />
-            ))}
+          <div
+            className={
+              viewMode === 'grid'
+                ? 'grid auto-rows-auto gap-2 justify-start grid-cols-[repeat(auto-fill,minmax(160px,1fr))]'
+                : 'space-y-2'
+            }
+          >
+            {sortedFiles.map((file) =>
+              viewMode === 'grid' ? (
+                <div key={file.id} className="w-full max-w-[200px]">
+                  <FileCard
+                    file={file}
+                    isSelected={selectedFile === file.id}
+                    onSelect={() => handleSelectFile(file.id)}
+                    onDelete={() => handleDeleteFile(file.id)}
+                    onRelink={() => relinkFile(file.id)}
+                    bulkSelected={bulkSelectedIds.includes(file.id)}
+                    onBulkToggle={() => bulkToggle(file.id)}
+                  />
+                </div>
+              ) : (
+                <FileCard
+                  key={file.id}
+                  file={file}
+                  isSelected={selectedFile === file.id}
+                  onSelect={() => handleSelectFile(file.id)}
+                  onDelete={() => handleDeleteFile(file.id)}
+                  onRelink={() => relinkFile(file.id)}
+                  bulkSelected={bulkSelectedIds.includes(file.id)}
+                  onBulkToggle={() => bulkToggle(file.id)}
+                />
+              )
+            )}
           </div>
         )}
       </div>

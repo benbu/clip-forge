@@ -22,6 +22,7 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
     selectedClipId,
     setSelectedClip,
     moveClipToTrack,
+    snapClipToTrack,
     tracks,
   } = useTimelineStore();
   const isSelected = selectedClipId === clip.id;
@@ -230,9 +231,11 @@ export function Clip({ clip, zoom, visibleDuration, onSelect }) {
       restoreGlobalUserSelect();
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-      if (targetTrackId && targetTrackId !== clip.trackId) {
+      const shouldMoveTrack = targetTrackId && targetTrackId !== clip.trackId;
+      if (shouldMoveTrack) {
         moveClipToTrack(clip.id, targetTrackId);
       }
+      snapClipToTrack(clip.id);
     };
     
     document.addEventListener('mousemove', handleMouseMove);

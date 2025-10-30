@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
@@ -10,6 +10,8 @@ import { useMediaStore } from '@/store/mediaStore';
 import { formatDuration } from '@/lib/fileUtils';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { shortcuts } from '@/lib/keyboardShortcuts';
+
+const EPSILON = 0.01;
 
 export function VideoPlayer() {
   const videoRef = useRef(null);
@@ -43,21 +45,328 @@ export function VideoPlayer() {
   
   const [showControls, setShowControls] = useState(true);
   const [videoSrc, setVideoSrc] = useState(null);
+  const [isGapActive, setIsGapActive] = useState(false);
+
+  const gapRafRef = useRef(null);
+  const gapStateRef = useRef(null);
+  const pendingClipTransitionRef = useRef(null);
+  const pendingSeekRef = useRef(null);
+  const isPlayingRef = useRef(isPlaying);
+  const playbackRateRef = useRef(playbackRate);
+  const isScrubbingRef = useRef(isScrubbing);
+  const currentTimelineClipRef = useRef(null);
+  const currentClipStartRef = useRef(0);
+  const currentClipSourceRef = useRef(0);
+  const currentClipEndRef = useRef(0);
+
+  const timelineClips = useMemo(() => {
+    if (!Array.isArray(clips)) return [];
+    return clips
+      .map((clip) => {
+        const rawStart = Number.isFinite(clip?.start) ? clip.start : 0;
+        const hasEnd = Number.isFinite(clip?.end);
+        const fallbackDuration = Number.isFinite(clip?.duration) ? Math.max(clip.duration, 0) : 0;
+        const computedEnd = hasEnd ? clip.end : rawStart + fallbackDuration;
+        const safeEnd = Number.isFinite(computedEnd) ? computedEnd : rawStart + fallbackDuration;
+        const normalizedDuration = Math.max(0, safeEnd - rawStart);
+        const mediaIn = Number.isFinite(clip?.sourceIn) ? clip.sourceIn : 0;
+        return {
+          ...clip,
+          start: rawStart,
+          end: safeEnd,
+          duration: normalizedDuration,
+          sourceIn: mediaIn,
+        };
+      })
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+  }, [clips]);
+
+  const timelineEnd = useMemo(() => {
+    if (timelineClips.length === 0) return 0;
+    const last = timelineClips[timelineClips.length - 1];
+    return Number.isFinite(last.end) ? last.end : (last.start ?? 0) + (last.duration ?? 0);
+  }, [timelineClips]);
+
+  const findClipAtTime = useCallback(
+    (time) =>
+      timelineClips.find((clip) => {
+        const start = clip.start ?? 0;
+        const end = clip.end ?? start;
+        return time >= start - EPSILON && time <= end - EPSILON;
+      }),
+    [timelineClips]
+  );
+
+  const findNextClipAfterTime = useCallback(
+    (time) =>
+      timelineClips.find((clip) => {
+        const start = clip.start ?? 0;
+        return start > time + EPSILON;
+      }),
+    [timelineClips]
+  );
+
+  const setCurrentClipContext = useCallback((clip) => {
+    if (clip) {
+      const start = Number.isFinite(clip.start) ? clip.start : 0;
+      const sourceIn = Number.isFinite(clip.sourceIn) ? clip.sourceIn : 0;
+      const duration = Number.isFinite(clip.duration) ? Math.max(0, clip.duration) : Math.max(0, (clip.end ?? start) - start);
+      const end = Number.isFinite(clip.end) ? clip.end : start + duration;
+
+      currentTimelineClipRef.current = clip;
+      currentClipStartRef.current = start;
+      currentClipSourceRef.current = sourceIn;
+      currentClipEndRef.current = end;
+    } else {
+      currentTimelineClipRef.current = null;
+      currentClipStartRef.current = 0;
+      currentClipSourceRef.current = 0;
+      currentClipEndRef.current = 0;
+    }
+  }, []);
+
+  const computeTimelineTime = useCallback(
+    (videoTime) => {
+      if (gapStateRef.current) {
+        return gapStateRef.current.playhead;
+      }
+
+      const clip = currentTimelineClipRef.current;
+      if (clip) {
+        const start = currentClipStartRef.current;
+        const sourceIn = currentClipSourceRef.current;
+        const end = currentClipEndRef.current;
+
+        const timelineTime = start + Math.max(0, videoTime - sourceIn);
+        return Number.isFinite(end) ? Math.min(end, timelineTime) : timelineTime;
+      }
+
+      return playheadPosition;
+    },
+    [playheadPosition]
+  );
+
+  const syncVideoToTimelineTime = useCallback(
+    (timelineTime, { maintainPlayback = false } = {}) => {
+      const clip = findClipAtTime(timelineTime);
+      setCurrentClipContext(clip ?? null);
+
+      if (!Number.isFinite(timelineTime)) {
+        return;
+      }
+
+      seek(timelineTime);
+      setPlayheadPosition(timelineTime);
+
+      if (clip) {
+        const clipStart = clip.start ?? 0;
+        const sourceIn = Number.isFinite(clip.sourceIn) ? clip.sourceIn : 0;
+        const relative = Math.max(0, timelineTime - clipStart);
+        const mediaTime = sourceIn + relative;
+
+        pendingSeekRef.current = mediaTime;
+
+        const video = videoRef.current;
+        if (video) {
+          try {
+            video.currentTime = mediaTime;
+            pendingSeekRef.current = null;
+          } catch (_) {
+            // Retry on loadedmetadata if needed
+          }
+
+          if (maintainPlayback && isPlayingRef.current && playbackSource === 'timeline') {
+            video.play().catch(() => {});
+          }
+        }
+
+        if (clip.mediaFileId && clip.mediaFileId !== selectedFile) {
+          selectFile(clip.mediaFileId);
+        }
+
+        setIsGapActive(false);
+      } else {
+        const video = videoRef.current;
+        if (video) {
+          video.pause();
+        }
+        pendingSeekRef.current = null;
+        setIsGapActive(true);
+      }
+    },
+    [findClipAtTime, playbackSource, seek, selectFile, selectedFile, setCurrentClipContext, setPlayheadPosition]
+  );
+
+  const stopGapTicker = useCallback(() => {
+    if (gapRafRef.current) {
+      cancelAnimationFrame(gapRafRef.current);
+      gapRafRef.current = null;
+    }
+  }, []);
+
+  const clearGapState = useCallback(() => {
+    gapStateRef.current = null;
+    setIsGapActive(false);
+    stopGapTicker();
+    pendingClipTransitionRef.current = null;
+  }, [stopGapTicker]);
+
+  const startClipPlayback = useCallback(
+    (clip) => {
+      if (!clip) return;
+      stopGapTicker();
+      gapStateRef.current = null;
+      pendingClipTransitionRef.current = clip.id ?? null;
+
+      const currentVideo = videoRef.current;
+      if (currentVideo) {
+        currentVideo.pause();
+      }
+
+      setCurrentClipContext(clip);
+      syncVideoToTimelineTime(Number.isFinite(clip.start) ? clip.start : 0, {
+        maintainPlayback: true,
+      });
+    },
+    [setCurrentClipContext, stopGapTicker, syncVideoToTimelineTime]
+  );
+
+  const startGapTicker = useCallback(
+    ({ from, to, nextClip }) => {
+      if (!Number.isFinite(to) || to <= from + EPSILON || !nextClip) {
+        startClipPlayback(nextClip);
+        return;
+      }
+
+      stopGapTicker();
+
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+      }
+
+      setCurrentClipContext(null);
+      pendingClipTransitionRef.current = null;
+
+      gapStateRef.current = {
+        playhead: from,
+        from,
+        to,
+        lastTimestamp: null,
+        nextClip,
+      };
+
+      setIsGapActive(true);
+
+      const tick = (timestamp) => {
+        if (!gapStateRef.current) return;
+        const state = gapStateRef.current;
+
+        if (!isPlayingRef.current || isScrubbingRef.current) {
+          state.lastTimestamp = timestamp;
+          gapRafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        const lastTs = state.lastTimestamp ?? timestamp;
+        const deltaSeconds = ((timestamp - lastTs) / 1000) * (playbackRateRef.current || 1);
+        state.lastTimestamp = timestamp;
+
+        const nextTime = Math.min(state.to, state.playhead + deltaSeconds);
+        state.playhead = nextTime;
+
+        seek(nextTime);
+        setPlayheadPosition(nextTime);
+
+        if (nextTime >= state.to - EPSILON) {
+          const upcomingClip = state.nextClip;
+          gapStateRef.current = null;
+          gapRafRef.current = null;
+          setIsGapActive(false);
+          startClipPlayback(upcomingClip);
+          return;
+        }
+
+        gapRafRef.current = requestAnimationFrame(tick);
+      };
+
+      gapRafRef.current = requestAnimationFrame((ts) => {
+        if (gapStateRef.current) {
+          gapStateRef.current.lastTimestamp = ts;
+        }
+        tick(ts);
+      });
+    },
+    [seek, setPlayheadPosition, setCurrentClipContext, startClipPlayback, stopGapTicker]
+  );
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    playbackRateRef.current = playbackRate;
+  }, [playbackRate]);
+
+  useEffect(() => {
+    isScrubbingRef.current = isScrubbing;
+  }, [isScrubbing]);
+
+  useEffect(() => {
+    if (playbackSource === 'timeline') {
+      setDuration(timelineEnd);
+    }
+  }, [playbackSource, setDuration, timelineEnd]);
+
+  useEffect(() => {
+    if (playbackSource !== 'timeline') {
+      clearGapState();
+    }
+  }, [playbackSource, clearGapState]);
+
+  useEffect(() => {
+    pendingClipTransitionRef.current = null;
+    if (gapStateRef.current) {
+      const state = gapStateRef.current;
+      const nextClipExists = timelineClips.some((clip) => clip.id === state.nextClip?.id);
+      if (!nextClipExists) {
+        clearGapState();
+      }
+    }
+  }, [timelineClips, clearGapState]);
+
+  useEffect(() => () => {
+    clearGapState();
+  }, [clearGapState]);
 
   // Auto-select clip media when the playhead moves across the timeline (timeline mode only)
   useEffect(() => {
-    if (!clips?.length) return;
-    if (playbackSource !== 'timeline') return;
+    if (playbackSource !== 'timeline') {
+      setCurrentClipContext(null);
+      return;
+    }
 
-    const clipAtPlayhead = clips.find(
-      (clip) => playheadPosition >= clip.start && playheadPosition <= clip.end
-    );
+    if (!timelineClips.length) {
+      setCurrentClipContext(null);
+      return;
+    }
 
-    // Only switch if we're actually on a different clip's media
+    const clipAtPlayhead = findClipAtTime(playheadPosition);
+
+    setCurrentClipContext(clipAtPlayhead ?? null);
+
     if (clipAtPlayhead?.mediaFileId && clipAtPlayhead.mediaFileId !== selectedFile) {
       selectFile(clipAtPlayhead.mediaFileId);
     }
-  }, [clips, playheadPosition, selectFile, selectedFile, playbackSource]);
+  }, [
+    timelineClips,
+    playbackSource,
+    playheadPosition,
+    findClipAtTime,
+    selectFile,
+    selectedFile,
+    setCurrentClipContext,
+  ]);
   
   // Load selected file's video source
   useEffect(() => {
@@ -134,39 +443,92 @@ export function VideoPlayer() {
     const handleTimeUpdate = () => {
       const current = video.currentTime;
       const now = performance.now();
-      
-      // Throttle to ~60fps (16.67ms between updates)
+
       if (now - lastUpdateTimeRef.current >= 16.67) {
         lastUpdateTimeRef.current = now;
-        
-        // Cancel any pending RAF
+
         if (rafRef.current) {
           cancelAnimationFrame(rafRef.current);
         }
-        
+
         rafRef.current = requestAnimationFrame(() => {
-          seek(current);
-          if (playbackSource === 'timeline') {
-            if (isPlaying && !isScrubbing) {
-              setPlayheadPosition(current);
+          if (playbackSource !== 'timeline') {
+            seek(current);
+            setPlayheadPosition(current);
+            return;
+          }
+
+          const timelineCurrent = computeTimelineTime(current);
+
+          seek(timelineCurrent);
+
+          if (!gapStateRef.current || !isPlayingRef.current || isScrubbingRef.current) {
+            setPlayheadPosition(timelineCurrent);
+          }
+
+          const activeClip = findClipAtTime(timelineCurrent);
+
+          if (activeClip) {
+            if (currentTimelineClipRef.current?.id !== activeClip.id) {
+              setCurrentClipContext(activeClip);
             }
-            // Stop playback at end of timeline clips (only relevant when playing)
-            if (isPlaying && clips && clips.length > 0) {
-              const timelineEnd = Math.max(
-                ...clips.map((clip) =>
-                  (clip.end != null)
-                    ? clip.end
-                    : (clip.start ?? 0) + (clip.duration ?? 0)
-                )
-              );
-              if (Number.isFinite(timelineEnd) && current >= (timelineEnd - 0.01)) {
-                // Clamp to end and pause
+
+            const clipEnd = activeClip.end ?? activeClip.start ?? timelineCurrent;
+
+            if (timelineCurrent < clipEnd - EPSILON) {
+              pendingClipTransitionRef.current = null;
+            }
+
+            if (
+              isPlayingRef.current &&
+              !isScrubbingRef.current &&
+              timelineCurrent >= clipEnd - EPSILON &&
+              !gapStateRef.current &&
+              pendingClipTransitionRef.current !== activeClip.id
+            ) {
+              pendingClipTransitionRef.current = activeClip.id;
+
+              const nextClip = findNextClipAfterTime(clipEnd - EPSILON);
+
+              if (nextClip) {
+                const gapStart = clipEnd;
+                const gapEnd = nextClip.start ?? gapStart;
+
+                if (gapEnd > gapStart + EPSILON) {
+                  startGapTicker({ from: gapStart, to: gapEnd, nextClip });
+                } else {
+                  startClipPlayback(nextClip);
+                }
+              } else if (Number.isFinite(timelineEnd) && timelineCurrent >= timelineEnd - EPSILON) {
+                clearGapState();
                 video.pause();
                 pause();
                 const endTime = Math.max(0, timelineEnd);
-                if (Math.abs(current - endTime) > 0.01) {
+                if (Math.abs(timelineCurrent - endTime) > EPSILON) {
                   seek(endTime);
                   setPlayheadPosition(endTime);
+                }
+              }
+            }
+          } else {
+            if (!gapStateRef.current) {
+              pendingClipTransitionRef.current = null;
+              setCurrentClipContext(null);
+            }
+
+            if (
+              isPlayingRef.current &&
+              !isScrubbingRef.current &&
+              !gapStateRef.current
+            ) {
+              const nextClip = findNextClipAfterTime(timelineCurrent);
+
+              if (nextClip) {
+                const gapEnd = nextClip.start ?? timelineCurrent;
+                if (gapEnd > timelineCurrent + EPSILON) {
+                  startGapTicker({ from: timelineCurrent, to: gapEnd, nextClip });
+                } else {
+                  startClipPlayback(nextClip);
                 }
               }
             }
@@ -174,19 +536,33 @@ export function VideoPlayer() {
         });
       }
     };
-    
+
     const handleLoadedMetadata = () => {
-      setDuration(video.duration);
+      if (playbackSource === 'timeline') {
+        setDuration(timelineEnd);
+        if (pendingSeekRef.current != null) {
+          try {
+            video.currentTime = pendingSeekRef.current;
+            pendingSeekRef.current = null;
+          } catch (_) {
+            // Ignore seek errors; playback loop will retry if needed
+          }
+        }
+        if (isPlayingRef.current && !isGapActive) {
+          video.play().catch(() => {});
+        }
+      } else {
+        setDuration(video.duration);
+      }
     };
-    
+
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    
+
     return () => {
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      
-      // Clean up RAF on unmount
+
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
       }
@@ -194,24 +570,45 @@ export function VideoPlayer() {
         cancelAnimationFrame(seekRafRef.current);
       }
     };
-  }, [seek, setPlayheadPosition, setDuration, playbackSource, isPlaying, isScrubbing, clips, pause]);
+  }, [
+    seek,
+    setPlayheadPosition,
+    setDuration,
+    playbackSource,
+    computeTimelineTime,
+    findClipAtTime,
+    findNextClipAfterTime,
+    setCurrentClipContext,
+    startGapTicker,
+    startClipPlayback,
+    timelineEnd,
+    clearGapState,
+    pause,
+    isGapActive,
+  ]);
   
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   
   const handleSeek = (value) => {
     const newTime = (value / 100) * duration;
-    seek(newTime);
     if (playbackSource === 'timeline') {
-      setPlayheadPosition(newTime);
+      clearGapState();
+      syncVideoToTimelineTime(newTime);
+      return;
     }
+    seek(newTime);
+    setPlayheadPosition(newTime);
   };
   
   const skip = (seconds) => {
     const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
-    seek(newTime);
     if (playbackSource === 'timeline') {
-      setPlayheadPosition(newTime);
+      clearGapState();
+      syncVideoToTimelineTime(newTime, { maintainPlayback: true });
+      return;
     }
+    seek(newTime);
+    setPlayheadPosition(newTime);
   };
 
   // Keyboard shortcuts
@@ -247,6 +644,10 @@ export function VideoPlayer() {
       >
         Your browser does not support the video tag.
       </video>
+
+      {playbackSource === 'timeline' && isGapActive && (
+        <div className="absolute inset-0 bg-black pointer-events-none" />
+      )}
       
       {/* Placeholder */}
       {!selectedFile && (

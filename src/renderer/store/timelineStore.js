@@ -323,6 +323,80 @@ export const useTimelineStore = create((set, get) => ({
       };
     }),
 
+  snapClipToTrack: (clipId) =>
+    set((state) => {
+      const targetClip = state.clips.find((clip) => clip.id === clipId);
+      if (!targetClip) return state;
+
+      const track = state.tracks.find((t) => t.id === targetClip.trackId);
+      if (track?.isLocked) {
+        return state;
+      }
+
+      const normalize = (clip) => {
+        if (!clip) return null;
+        const start = Number.isFinite(clip.start) ? clip.start : 0;
+        const duration = Number.isFinite(clip.duration)
+          ? Math.max(0, clip.duration)
+          : Math.max(0, (clip.end ?? start) - start);
+        const end = start + duration;
+        return { clip, start, end, duration };
+      };
+
+      const current = normalize(targetClip);
+      if (!current) return state;
+
+      const siblings = state.clips
+        .filter((clip) => clip.trackId === targetClip.trackId && clip.id !== clipId)
+        .map(normalize)
+        .filter(Boolean)
+        .sort((a, b) => a.start - b.start);
+
+      if (siblings.length === 0) {
+        return state;
+      }
+
+      let newStart = current.start;
+      const duration = current.duration;
+
+      const leftSibling = siblings
+        .filter((sibling) => sibling.start <= newStart + 0.001)
+        .pop();
+
+      const leftEdge = leftSibling ? leftSibling.end : 0;
+      if (leftSibling && newStart < leftSibling.end) {
+        newStart = leftSibling.end;
+      }
+
+      const rightSibling = siblings.find((sibling) => sibling.start >= newStart - 0.001);
+      if (rightSibling) {
+        const maxStart = rightSibling.start - duration;
+        if (newStart > maxStart) {
+          newStart = Math.max(leftEdge, maxStart);
+        }
+      }
+
+      newStart = Math.max(0, newStart);
+      const newEnd = newStart + duration;
+
+      if (Math.abs(newStart - current.start) < 0.001) {
+        return state;
+      }
+
+      return {
+        clips: state.clips.map((clip) =>
+          clip.id === clipId
+            ? {
+                ...clip,
+                start: newStart,
+                end: newEnd,
+                duration,
+              }
+            : clip
+        ),
+      };
+    }),
+
   removeClip: (clipId) =>
     set((state) => {
       const targetClip = state.clips.find((clip) => clip.id === clipId);
