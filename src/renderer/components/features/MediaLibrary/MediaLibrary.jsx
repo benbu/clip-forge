@@ -1,7 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Plus, Grid, List } from 'lucide-react';
 import { FileCard } from './FileCard';
-import { ClipDetailDrawer } from './ClipDetailDrawer';
 import { Button } from '@/components/ui/Button';
 import { useMediaStore } from '@/store/mediaStore';
 import { importVideoFiles } from '@/services/mediaService';
@@ -15,7 +14,6 @@ export function MediaLibrary() {
   const {
     files,
     selectedFile,
-    selectedFileData,
     removeFile,
     selectFile,
     addFiles,
@@ -24,7 +22,6 @@ export function MediaLibrary() {
     filterType,
     setSort,
     setFilterType,
-    clearSelection,
     bulkSelectedIds,
     bulkToggle,
     bulkClear,
@@ -302,7 +299,7 @@ export function MediaLibrary() {
             <p className="text-xs mt-1">Drag files here or click import</p>
           </div>
         ) : (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-2' : 'space-y-2'}>
+          <div className={viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fill,minmax(200px,200px))] gap-2 justify-start content-start' : 'space-y-2'}>
             {sortedFiles.map(file => (
               <FileCard
                 key={file.id}
@@ -313,16 +310,13 @@ export function MediaLibrary() {
                 onRelink={() => relinkFile(file.id)}
                 bulkSelected={bulkSelectedIds.includes(file.id)}
                 onBulkToggle={() => bulkToggle(file.id)}
+                viewMode={viewMode}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Detail Drawer */}
-      {selectedFile && selectedFileData && (
-        <ClipDetailDrawer file={selectedFileData} onClose={clearSelection} />
-      )}
     </div>
   );
 }

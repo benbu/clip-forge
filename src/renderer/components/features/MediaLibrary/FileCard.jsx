@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function FileCard({ file, isSelected, onSelect, onDelete, onRelink, bulkSelected, onBulkToggle }) {
+export function FileCard({ file, isSelected, onSelect, onDelete, onRelink, bulkSelected, onBulkToggle, viewMode = 'grid' }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
@@ -23,6 +23,7 @@ export function FileCard({ file, isSelected, onSelect, onDelete, onRelink, bulkS
     <div
       className={cn(
         'relative rounded-lg overflow-hidden border transition-all cursor-pointer group',
+        viewMode === 'grid' ? 'w-full max-w-[200px]' : 'w-full',
         'bg-zinc-800/70 border-white/5',
         isSelected && 'ring-2 ring-indigo-500 border-indigo-500',
         'hover:border-zinc-600 hover:shadow-md',
